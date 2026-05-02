@@ -1,0 +1,14 @@
+aliases:
+  deepseek-v4-flash: deepseek/deepseek-v4-flash
+  deepseek-r1: deepseek/deepseek-r1
+  gpt-4o: openai/gpt-4o
+  gpt-4o-mini: openai/gpt-4o-mini
+  o3: openai/o3
+  gemini-2.5-flash: google/gemini-2.5-flash
+  gemini-2.5-pro: google/gemini-2.5-pro
+  claude-sonnet: anthropic/claude-sonnet-4-6
+  claude-haiku: anthropic/claude-haiku-4-5-20251001
+  llama-4-maverick: meta-llama/llama-4-maverick
+  qwen3-235b: qwen/qwen3-235b-a22b
+
+default: deepseek/deepseek-v4-flash
