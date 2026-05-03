@@ -12,3 +12,5 @@ web/static/
 .pytest_cache/
 *.log
 .vscode/
+docs/superpowers/
+web/frontend/README.md

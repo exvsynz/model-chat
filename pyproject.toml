@@ -8,6 +8,7 @@ version = "1.0.0"
 description = "Chat with any LLM via OpenRouter — CLI and web UI"
 readme = "README.md"
 license = "MIT"
+authors = [{name = "exvsynz"}]
 requires-python = ">=3.10"
 dependencies = [
     "openai>=1.0",
