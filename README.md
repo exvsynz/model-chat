@@ -13,6 +13,10 @@ Chat with any LLM via [OpenRouter](https://openrouter.ai). CLI REPL and web UI.
 - **Streaming**: Token-by-token output in both CLI and web (SSE)
 - **Model browsing**: Search all 300+ OpenRouter models from CLI or web
 - **File context**: Attach file contents to your conversation via `/file`
+- **Token usage**: Displays token count and response time after each message
+- **Smart completion**: Tab-complete commands, model names, personas, file paths
+- **Theme toggle**: Switch between dark and light mode in the web UI
+- **Auto-titles**: Conversations get titles from the first message
 
 ## Install
 
@@ -70,6 +74,11 @@ mchat --web --host 0.0.0.0 --port 3000   # custom bind
 | `/load <id>` | Resume a saved conversation |
 | `/list` | List saved conversations |
 | `/clear` | Reset conversation |
+| `/info` | Show current session state |
+| `/retry` | Regenerate last response |
+| `/edit` | Edit and re-send last message |
+| `/copy` | Copy last response to clipboard |
+| `/export <path>` | Export conversation as markdown |
 | `/multi` | Toggle multi-line input |
 | `/help` | Show help |
 | `/quit` | Exit |
@@ -101,9 +110,11 @@ model-chat/
     models.py     # Model registry + alias resolution + fetch_all_models()
     personas.py   # System prompt loader
     store.py      # JSON conversation persistence
+    usage.py      # Token usage stats and formatting
   cli/            # Terminal interface
     app.py        # Entry point, prompt_toolkit REPL
-    commands.py   # Slash command handler
+    commands.py   # Slash command handler (19 commands)
+    completers.py # Smart tab completion
     render.py     # Output formatting (Rich markdown + plain text)
   web/
     backend/

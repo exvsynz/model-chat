@@ -49,6 +49,7 @@ def test_registry_has_builtin_commands(registry):
     names = registry.list_commands()
     assert "model" in names
     assert "models" in names
+    assert "browse" in names
     assert "effort" in names
     assert "file" in names
     assert "persona" in names
@@ -58,6 +59,11 @@ def test_registry_has_builtin_commands(registry):
     assert "list" in names
     assert "clear" in names
     assert "multi" in names
+    assert "info" in names
+    assert "retry" in names
+    assert "edit" in names
+    assert "copy" in names
+    assert "export" in names
     assert "help" in names
     assert "quit" in names
 
