@@ -85,3 +85,13 @@ def test_add_duplicate_slug_appends_number(memory):
     f2 = memory.add("User is Josh", "user")
     assert f1 != f2
     assert "_2" in f2
+
+
+def test_model_registry_memory_config():
+    from core.models import ModelRegistry
+    config_path = Path(__file__).parent.parent / "config" / "models.yaml"
+    registry = ModelRegistry(config_path)
+    config = registry.memory_config
+    assert config["auto_memory"] is True
+    assert config["extraction_model"] is None
+    assert config["max_memories"] == 100

@@ -37,3 +37,8 @@ aliases:
   gemini-2.5-flash: google/gemini-2.5-flash
 
 default: deepseek/deepseek-v4-flash
+
+memory:
+  auto_memory: true
+  extraction_model: null
+  max_memories: 100

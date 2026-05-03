@@ -10,6 +10,7 @@ class ModelRegistry:
         data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
         self._aliases: dict[str, str] = data.get("aliases", {})
         self.default: str = data.get("default", "deepseek/deepseek-v4-flash")
+        self._memory: dict = data.get("memory", {})
 
     @classmethod
     def from_bundled(cls) -> "ModelRegistry":
@@ -21,6 +22,14 @@ class ModelRegistry:
 
     def list_aliases(self) -> list[tuple[str, str]]:
         return list(self._aliases.items())
+
+    @property
+    def memory_config(self) -> dict:
+        return {
+            "auto_memory": self._memory.get("auto_memory", True),
+            "extraction_model": self._memory.get("extraction_model", None),
+            "max_memories": self._memory.get("max_memories", 100),
+        }
 
 
 _all_models_cache: list[dict] | None = None
