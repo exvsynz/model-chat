@@ -65,6 +65,10 @@ def test_registry_has_builtin_commands(registry):
     assert "edit" in names
     assert "copy" in names
     assert "export" in names
+    assert "remember" in names
+    assert "forget" in names
+    assert "memories" in names
+    assert "automemory" in names
     assert "help" in names
     assert "quit" in names
 

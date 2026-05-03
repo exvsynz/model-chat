@@ -17,6 +17,7 @@ Chat with any LLM via [OpenRouter](https://openrouter.ai). CLI REPL and web UI.
 - **Smart completion**: Tab-complete commands, model names, personas, file paths
 - **Theme toggle**: Switch between dark and light mode in the web UI
 - **Auto-titles**: Conversations get titles from the first message
+- **Memory**: Persistent memory across conversations with auto-extraction
 
 ## Install
 
@@ -79,6 +80,10 @@ mchat --web --host 0.0.0.0 --port 3000   # custom bind
 | `/edit` | Edit and re-send last message |
 | `/copy` | Copy last response to clipboard |
 | `/export <path>` | Export conversation as markdown |
+| `/remember <text>` | Save a memory for future conversations |
+| `/forget <slug\|keyword>` | Remove a saved memory |
+| `/memories` | List all saved memories |
+| `/automemory` | Toggle auto memory extraction |
 | `/multi` | Toggle multi-line input |
 | `/help` | Show help |
 | `/quit` | Exit |
@@ -110,6 +115,7 @@ model-chat/
     models.py     # Model registry + alias resolution + fetch_all_models()
     personas.py   # System prompt loader
     store.py      # JSON conversation persistence
+    memory.py     # MemoryStore + auto-extraction
     usage.py      # Token usage stats and formatting
   cli/            # Terminal interface
     app.py        # Entry point, prompt_toolkit REPL
