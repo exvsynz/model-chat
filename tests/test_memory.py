@@ -58,3 +58,30 @@ def test_get_returns_memory_details(memory):
 
 def test_get_nonexistent_returns_none(memory):
     assert memory.get("nonexistent") is None
+
+
+def test_is_duplicate_detects_overlap(memory):
+    memory.add("User is Josh from Taiwan", "user")
+    assert memory._is_duplicate("Josh is from Taiwan") is True
+
+
+def test_is_duplicate_no_overlap(memory):
+    memory.add("User is Josh from Taiwan", "user")
+    assert memory._is_duplicate("Prefers dark mode themes") is False
+
+
+def test_rebuild_index_reconciles(memory):
+    memory.add("User is Josh", "user")
+    memory.add("Likes dark mode", "preference")
+    # Corrupt index
+    (memory.memory_dir / "MEMORY.md").write_text("garbage\n", encoding="utf-8")
+    memory._rebuild_index()
+    result = memory.list_all()
+    assert len(result) == 2
+
+
+def test_add_duplicate_slug_appends_number(memory):
+    f1 = memory.add("User is Josh", "user")
+    f2 = memory.add("User is Josh", "user")
+    assert f1 != f2
+    assert "_2" in f2
