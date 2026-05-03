@@ -1,6 +1,9 @@
+import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+
+from core.client import get_async_openai_client
 
 STOPWORDS = {"the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
              "have", "has", "had", "do", "does", "did", "will", "would", "could",
@@ -138,3 +141,54 @@ class MemoryStore:
                         meta[key.strip()] = val.strip()
                 return meta, parts[2]
         return {}, text
+
+
+EXTRACTION_PROMPT = """Extract facts from this conversation worth remembering for future conversations.
+
+Categories:
+- user: who the user is, their name, location, role, preferences
+- project: what they're working on, goals, deadlines
+- preference: how they like to work, formatting preferences, tool choices
+- fact: any other useful fact
+
+Return a JSON array. Each item: {"content": "one sentence fact", "type": "category"}
+If nothing worth remembering, return [].
+
+RULES:
+- Only extract facts that would be useful in a DIFFERENT conversation
+- Do not extract conversation-specific details (what was asked, what was answered)
+- Do not extract anything obvious from context
+- Maximum 5 items per conversation
+- Each item must be one concise sentence"""
+
+
+async def extract_memories(messages: list[dict], model: str) -> list[dict]:
+    try:
+        client = get_async_openai_client()
+        recent = messages[-20:]
+        extraction_messages = [
+            {"role": "system", "content": EXTRACTION_PROMPT},
+            {"role": "user", "content": "\n".join(
+                f"{m['role'].upper()}: {m['content']}" for m in recent
+            )},
+        ]
+        response = await client.chat.completions.create(
+            model=model,
+            messages=extraction_messages,
+            stream=False,
+        )
+        raw = response.choices[0].message.content.strip()
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        data = json.loads(raw)
+        if not isinstance(data, list):
+            return []
+        return [
+            {"content": item["content"], "type": item.get("type", "fact")}
+            for item in data
+            if isinstance(item, dict) and "content" in item
+        ][:5]
+    except (json.JSONDecodeError, KeyError, IndexError):
+        return []
+    except Exception:
+        return []

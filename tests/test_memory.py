@@ -95,3 +95,66 @@ def test_model_registry_memory_config():
     assert config["auto_memory"] is True
     assert config["extraction_model"] is None
     assert config["max_memories"] == 100
+
+
+from unittest.mock import patch, AsyncMock, MagicMock
+
+
+@pytest.mark.asyncio
+async def test_extract_memories_returns_facts():
+    from core.memory import extract_memories
+
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock()]
+    mock_response.choices[0].message.content = '[{"content": "User is Josh", "type": "user"}]'
+
+    mock_client = AsyncMock()
+    mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+    with patch("core.memory.get_async_openai_client", return_value=mock_client):
+        result = await extract_memories(
+            messages=[
+                {"role": "user", "content": "Hi, I'm Josh from Taiwan"},
+                {"role": "assistant", "content": "Hello Josh!"},
+                {"role": "user", "content": "I like dark mode"},
+                {"role": "assistant", "content": "Noted!"},
+            ],
+            model="deepseek/deepseek-v4-flash",
+        )
+    assert len(result) == 1
+    assert result[0]["content"] == "User is Josh"
+    assert result[0]["type"] == "user"
+
+
+@pytest.mark.asyncio
+async def test_extract_memories_handles_invalid_json():
+    from core.memory import extract_memories
+
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock()]
+    mock_response.choices[0].message.content = "not valid json at all"
+
+    mock_client = AsyncMock()
+    mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+    with patch("core.memory.get_async_openai_client", return_value=mock_client):
+        result = await extract_memories(
+            messages=[{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}] * 2,
+            model="deepseek/deepseek-v4-flash",
+        )
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_extract_memories_handles_api_error():
+    from core.memory import extract_memories
+
+    mock_client = AsyncMock()
+    mock_client.chat.completions.create = AsyncMock(side_effect=Exception("API down"))
+
+    with patch("core.memory.get_async_openai_client", return_value=mock_client):
+        result = await extract_memories(
+            messages=[{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}] * 2,
+            model="deepseek/deepseek-v4-flash",
+        )
+    assert result == []
