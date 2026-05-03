@@ -6,6 +6,8 @@ build-backend = "setuptools.build_meta"
 name = "model-chat"
 version = "1.0.0"
 description = "Chat with any LLM via OpenRouter — CLI and web UI"
+readme = "README.md"
+license = "MIT"
 requires-python = ">=3.10"
 dependencies = [
     "openai>=1.0",

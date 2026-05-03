@@ -1,6 +1,18 @@
 # model-chat
 
-Chat with any LLM via OpenRouter. CLI and web UI.
+Chat with any LLM via [OpenRouter](https://openrouter.ai). CLI REPL and web UI.
+
+## Features
+
+- **Multi-model**: Switch between any OpenRouter model mid-conversation
+- **CLI REPL**: prompt_toolkit-based terminal chat with slash commands
+- **Web UI**: SvelteKit frontend served by FastAPI, with searchable model dropdown
+- **Personas**: System prompt templates (coder, tutor, translator, reviewer, writer, shell, general)
+- **Conversation persistence**: Save/load/list/delete conversations as JSON
+- **Reasoning effort**: Toggle DeepSeek/Qwen thinking depth (low/medium/high)
+- **Streaming**: Token-by-token output in both CLI and web (SSE)
+- **Model browsing**: Search all 300+ OpenRouter models from CLI or web
+- **File context**: Attach file contents to your conversation via `/file`
 
 ## Install
 
@@ -10,35 +22,112 @@ cd model-chat
 pip install .
 ```
 
-Requires Python 3.10+ and an [OpenRouter](https://openrouter.ai) API key:
+For development:
 
 ```bash
-export OPENROUTER_API_KEY=sk-or-...
+pip install -e ".[dev]"
 ```
 
-On Windows:
-```powershell
+Requires Python 3.10+ and an OpenRouter API key:
+
+```bash
+# Linux/macOS
+export OPENROUTER_API_KEY=sk-or-...
+
+# Windows
 setx OPENROUTER_API_KEY "sk-or-..."
 ```
 
 ## Usage
 
-**CLI:**
+### CLI
+
 ```bash
-mchat                                # start chatting
-mchat --model gpt-4o --persona coder # with options
+mchat                                    # start chatting (default: deepseek-v4-flash)
+mchat --model qwen3-coder --persona coder  # with options
+mchat --effort high                      # enable deep reasoning
 ```
 
-**Web UI:**
+### Web UI
+
 ```bash
-mchat --web                          # opens browser
+mchat --web                              # http://127.0.0.1:8000
+mchat --web --host 0.0.0.0 --port 3000   # custom bind
 ```
 
-Type `/help` in the CLI for all commands.
+### CLI Commands
 
-## Docker (optional)
+| Command | Description |
+|---------|-------------|
+| `/model <name\|id>` | Switch model (alias or full OpenRouter ID) |
+| `/models` | List configured model aliases |
+| `/browse [search]` | Search all OpenRouter models |
+| `/effort low\|medium\|high` | Set reasoning effort |
+| `/persona <name>` | Load a system prompt |
+| `/personas` | List available personas |
+| `/file <path>` | Add file contents to context |
+| `/save` | Save current conversation |
+| `/load <id>` | Resume a saved conversation |
+| `/list` | List saved conversations |
+| `/clear` | Reset conversation |
+| `/multi` | Toggle multi-line input |
+| `/help` | Show help |
+| `/quit` | Exit |
+
+### Model Aliases
+
+Short names for common models — see [`config/models.yaml`](config/models.yaml) for the full list. You can also use any full OpenRouter model ID directly (e.g. `openai/gpt-4o`).
+
+### Personas
+
+System prompt templates in [`config/personas/`](config/personas/):
+
+| Name | Purpose |
+|------|---------|
+| general | Balanced assistant (default) |
+| coder | Code-focused, concise output |
+| reviewer | Code review with actionable feedback |
+| writer | Technical writing, docs, emails |
+| tutor | Patient step-by-step teaching |
+| translator | English/Chinese translation |
+| shell | Shell command generation |
+
+## Architecture
+
+```
+model-chat/
+  core/           # Shared library
+    client.py     # AsyncOpenAI streaming client (OpenRouter)
+    models.py     # Model registry + alias resolution + fetch_all_models()
+    personas.py   # System prompt loader
+    store.py      # JSON conversation persistence
+  cli/            # Terminal interface
+    app.py        # Entry point, prompt_toolkit REPL
+    commands.py   # Slash command handler
+    render.py     # Output formatting (Rich markdown + plain text)
+  web/
+    backend/
+      server.py   # FastAPI + SSE streaming + static file serving
+    frontend/     # SvelteKit 5 + Tailwind CSS v4
+  config/
+    models.yaml   # Model aliases
+    personas/     # System prompt .txt files
+  tests/          # pytest + pytest-asyncio
+```
+
+## Docker
 
 ```bash
 docker build -t model-chat .
 docker run -e OPENROUTER_API_KEY=sk-or-... -p 8000:8000 model-chat
 ```
+
+## Testing
+
+```bash
+pytest tests/ -v
+```
+
+## License
+
+MIT

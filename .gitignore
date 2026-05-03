@@ -11,3 +11,4 @@ web/frontend/build/
 web/static/
 .pytest_cache/
 *.log
+.vscode/
