@@ -3,6 +3,7 @@ from cli.commands import parse_command, CommandRegistry, CommandHandler
 from core.models import ModelRegistry
 from core.personas import PersonaStore
 from core.store import ConversationStore
+from core.memory import MemoryStore
 from pathlib import Path
 
 
@@ -162,3 +163,78 @@ def test_cmd_export_no_messages(handler, capsys):
     handler.messages = []
     handler.handle("export", "test.md")
     assert "No messages" in capsys.readouterr().out
+
+
+@pytest.fixture
+def handler_with_memory(tmp_path):
+    config_path = Path(__file__).parent.parent / "config" / "models.yaml"
+    models = ModelRegistry(config_path)
+    personas_dir = Path(__file__).parent.parent / "config" / "personas"
+    personas = PersonaStore(personas_dir)
+    store = ConversationStore(tmp_path / "convos")
+    memory = MemoryStore(tmp_path / "memory")
+    return CommandHandler(models=models, personas=personas, store=store, memory=memory)
+
+
+def test_cmd_remember_saves_memory(handler_with_memory, capsys):
+    handler_with_memory.handle("remember", "User is Josh from Taiwan")
+    output = capsys.readouterr().out
+    assert "Remembered" in output
+    assert len(handler_with_memory.memory.list_all()) == 1
+
+
+def test_cmd_remember_no_args(handler_with_memory, capsys):
+    handler_with_memory.handle("remember", "")
+    output = capsys.readouterr().out
+    assert "Usage" in output
+
+
+def test_cmd_remember_duplicate(handler_with_memory, capsys):
+    handler_with_memory.handle("remember", "User is Josh from Taiwan")
+    handler_with_memory.handle("remember", "Josh is from Taiwan")
+    output = capsys.readouterr().out
+    assert "Similar memory" in output
+
+
+def test_cmd_forget_removes_memory(handler_with_memory, capsys):
+    handler_with_memory.handle("remember", "User is Josh from Taiwan")
+    handler_with_memory.handle("forget", "user_josh_from_taiwan")
+    output = capsys.readouterr().out
+    assert "Forgot" in output
+    assert len(handler_with_memory.memory.list_all()) == 0
+
+
+def test_cmd_forget_by_keyword(handler_with_memory, capsys):
+    handler_with_memory.handle("remember", "User is Josh from Taiwan")
+    handler_with_memory.handle("forget", "taiwan")
+    output = capsys.readouterr().out
+    assert "Forgot" in output
+
+
+def test_cmd_forget_not_found(handler_with_memory, capsys):
+    handler_with_memory.handle("forget", "nonexistent")
+    output = capsys.readouterr().out
+    assert "No memory found" in output
+
+
+def test_cmd_memories_lists_all(handler_with_memory, capsys):
+    handler_with_memory.handle("remember", "User is Josh from Taiwan")
+    handler_with_memory.handle("remember", "Prefers dark mode")
+    handler_with_memory.handle("memories", "")
+    output = capsys.readouterr().out
+    assert "Josh" in output
+    assert "dark mode" in output
+
+
+def test_cmd_memories_empty(handler_with_memory, capsys):
+    handler_with_memory.handle("memories", "")
+    output = capsys.readouterr().out
+    assert "No memories" in output
+
+
+def test_cmd_automemory_toggle(handler_with_memory, capsys):
+    assert handler_with_memory.auto_memory is True
+    handler_with_memory.handle("automemory", "")
+    assert handler_with_memory.auto_memory is False
+    output = capsys.readouterr().out
+    assert "off" in output

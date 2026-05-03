@@ -4,6 +4,7 @@ from pathlib import Path
 from core.models import ModelRegistry
 from core.personas import PersonaStore
 from core.store import ConversationStore
+from core.memory import MemoryStore
 from cli.render import print_info, print_error, print_success
 
 
@@ -35,6 +36,10 @@ COMMAND_HELP = {
     "edit": ("/edit", "Edit and re-send last message"),
     "copy": ("/copy", "Copy last response to clipboard"),
     "export": ("/export <path>", "Export conversation as markdown"),
+    "remember": ("/remember <text>", "Save a memory"),
+    "forget": ("/forget <slug|keyword>", "Forget a memory"),
+    "memories": ("/memories", "List saved memories"),
+    "automemory": ("/automemory", "Toggle auto-extraction"),
     "help": ("/help", "Show this help"),
     "quit": ("/quit", "Exit"),
 }
@@ -60,6 +65,7 @@ class CommandHandler:
         models: ModelRegistry,
         personas: PersonaStore,
         store: ConversationStore,
+        memory: MemoryStore | None = None,
     ):
         self.models = models
         self.personas = personas
@@ -73,6 +79,9 @@ class CommandHandler:
         self.registry = CommandRegistry()
         self.edit_text: str | None = None
         self.last_response: str | None = None
+        self.memory = memory
+        self.auto_memory: bool = True
+        self.max_memories: int = 100
 
     def handle(self, cmd: str, args: str) -> str | None:
         handler = getattr(self, f"_cmd_{cmd}", None)
@@ -284,6 +293,74 @@ class CommandHandler:
             lines.append("")
         path.write_text("\n".join(lines), encoding="utf-8")
         print_success(f"Exported {len(self.messages)} messages to {path}")
+        return None
+
+    def _cmd_remember(self, args: str) -> str | None:
+        if not args:
+            print_error("Usage: /remember <text>")
+            return None
+        if self.memory is None:
+            print_error("Memory not available")
+            return None
+        if len(self.memory.list_all()) >= self.max_memories:
+            print_error(f"Memory limit reached ({self.max_memories}). Use /forget to remove old memories.")
+            return None
+        if self.memory._is_duplicate(args):
+            entries = self.memory.list_all()
+            for entry in entries:
+                words = self.memory._significant_words(args)
+                existing = self.memory._significant_words(entry["summary"])
+                if len(words & existing) >= 3:
+                    print_info(f"Similar memory already exists: {entry['summary']}")
+                    return None
+        filename = self.memory.add(args, "fact")
+        print_success(f"Remembered: {args[:80]}")
+        return None
+
+    def _cmd_forget(self, args: str) -> str | None:
+        if not args:
+            print_error("Usage: /forget <slug or keyword>")
+            return None
+        if self.memory is None:
+            print_error("Memory not available")
+            return None
+        if self.memory.remove(args):
+            print_success(f"Forgot: {args}")
+            return None
+        # Try common category prefixes when bare slug provided
+        for prefix in ("fact_", "pref_", "project_", "note_"):
+            if self.memory.remove(f"{prefix}{args}"):
+                print_success(f"Forgot: {args}")
+                return None
+        entries = self.memory.list_all()
+        matches = [e for e in entries if args.lower() in e["summary"].lower()]
+        if not matches:
+            print_error(f"No memory found matching: {args}")
+        elif len(matches) == 1:
+            slug = matches[0]["file"].removesuffix(".md")
+            self.memory.remove(slug)
+            print_success(f"Forgot: {matches[0]['summary']}")
+        else:
+            lines = [f"  {e['file'].removesuffix('.md')}: {e['summary']}" for e in matches]
+            print_info("Multiple matches — be more specific:\n" + "\n".join(lines))
+        return None
+
+    def _cmd_memories(self, args: str) -> str | None:
+        if self.memory is None:
+            print_error("Memory not available")
+            return None
+        entries = self.memory.list_all()
+        if not entries:
+            print_info("No memories saved")
+            return None
+        lines = [f"  {e['file'].removesuffix('.md')}: {e['summary']}" for e in entries]
+        print_info(f"Memories ({len(entries)}):\n" + "\n".join(lines))
+        return None
+
+    def _cmd_automemory(self, args: str) -> str | None:
+        self.auto_memory = not self.auto_memory
+        state = "on" if self.auto_memory else "off"
+        print_success(f"Auto-memory: {state}")
         return None
 
     def _cmd_help(self, args: str) -> str | None:
