@@ -9,11 +9,17 @@ class ChatError(Exception):
     pass
 
 
+_client: AsyncOpenAI | None = None
+
+
 def get_async_openai_client() -> AsyncOpenAI:
-    api_key = os.environ.get("OPENROUTER_API_KEY")
-    if not api_key:
-        raise ChatError("OPENROUTER_API_KEY environment variable not set")
-    return AsyncOpenAI(api_key=api_key, base_url="https://openrouter.ai/api/v1")
+    global _client
+    if _client is None:
+        api_key = os.environ.get("OPENROUTER_API_KEY")
+        if not api_key:
+            raise ChatError("OPENROUTER_API_KEY environment variable not set")
+        _client = AsyncOpenAI(api_key=api_key, base_url="https://openrouter.ai/api/v1")
+    return _client
 
 
 async def chat_stream(
