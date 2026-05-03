@@ -1,4 +1,6 @@
 import json
+import logging
+import os
 from pathlib import Path
 
 import uvicorn
@@ -13,6 +15,8 @@ from core.models import ModelRegistry, fetch_all_models
 from core.personas import PersonaStore
 from core.store import ConversationStore
 
+
+logger = logging.getLogger("model-chat")
 
 DATA_DIR = Path.home() / ".model-chat"
 
@@ -35,6 +39,9 @@ class SaveRequest(BaseModel):
 
 def create_app() -> FastAPI:
     app = FastAPI(title="model-chat")
+
+    if not os.environ.get("OPENROUTER_API_KEY"):
+        logger.warning("OPENROUTER_API_KEY is not set — /api/chat will fail")
 
     app.add_middleware(
         CORSMiddleware,
@@ -102,6 +109,8 @@ def create_app() -> FastAPI:
     static_dir = Path(__file__).parent.parent / "static"
     if static_dir.exists():
         app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
+    else:
+        logger.warning(f"Frontend static build not found at {static_dir} — web UI will not be served")
 
     return app
 
