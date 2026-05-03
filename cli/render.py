@@ -9,20 +9,20 @@ def print_markdown(text: str) -> None:
 
 
 def print_streaming_token(token: str) -> None:
-    _console.print(token, end="", highlight=False)
+    print(token, end="", flush=True)
 
 
 def print_streaming_end() -> None:
-    _console.print()
+    print()
 
 
 def print_info(text: str) -> None:
-    _console.print(f"[dim]{text}[/dim]")
+    print(text)
 
 
 def print_error(text: str) -> None:
-    _console.print(f"[bold red]Error:[/bold red] {text}")
+    print(f"Error: {text}")
 
 
 def print_success(text: str) -> None:
-    _console.print(f"[green]{text}[/green]")
+    print(text)
