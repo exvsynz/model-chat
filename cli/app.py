@@ -10,6 +10,7 @@ from core.client import chat_stream, ChatError
 from core.models import ModelRegistry
 from core.personas import PersonaStore
 from core.store import ConversationStore
+from core.memory import MemoryStore
 from core.usage import UsageStats, format_usage
 from cli.commands import parse_command, CommandHandler
 from cli.completers import ChatCompleter
@@ -42,10 +43,16 @@ async def run_chat(handler: CommandHandler, user_input: str) -> None:
     full_response = ""
     usage: UsageStats | None = None
     try:
+        memory_section = handler.memory.format_for_prompt() if handler.memory else None
+        if memory_section:
+            effective_prompt = (handler.system_prompt or "") + "\n\n" + memory_section
+        else:
+            effective_prompt = handler.system_prompt
+
         async for item in chat_stream(
             messages=handler.messages,
             model=handler.current_model,
-            system_prompt=handler.system_prompt,
+            system_prompt=effective_prompt,
             effort=handler.effort,
         ):
             if isinstance(item, UsageStats):
@@ -126,6 +133,7 @@ def main():
     parser.add_argument("--web", action="store_true", help="Launch web UI instead of CLI")
     parser.add_argument("--host", default="127.0.0.1", help="Web server host (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=8000, help="Web server port (default: 8000)")
+    parser.add_argument("--no-auto-memory", action="store_true", help="Disable auto memory extraction")
     args = parser.parse_args()
 
     if args.web:
@@ -139,8 +147,9 @@ def main():
     models = ModelRegistry.from_bundled()
     personas = PersonaStore.from_bundled()
     store = ConversationStore(DATA_DIR / "conversations")
+    memory = MemoryStore(DATA_DIR / "memory")
 
-    handler = CommandHandler(models=models, personas=personas, store=store)
+    handler = CommandHandler(models=models, personas=personas, store=store, memory=memory)
 
     if args.model:
         handler.current_model = models.resolve(args.model)
@@ -153,6 +162,11 @@ def main():
             print_error(f"Persona not found: {args.persona}")
     if args.effort:
         handler.effort = args.effort
+    if args.no_auto_memory:
+        handler.auto_memory = False
+    else:
+        handler.auto_memory = models.memory_config["auto_memory"]
+    handler.max_memories = models.memory_config["max_memories"]
 
     asyncio.run(repl(handler))
 
