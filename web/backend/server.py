@@ -83,6 +83,14 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=404, detail="not found")
         return convo
 
+    @app.delete("/api/conversations/{convo_id}")
+    def delete_conversation(convo_id: str):
+        convo = store.load(convo_id)
+        if convo is None:
+            raise HTTPException(status_code=404, detail="not found")
+        store.delete(convo_id)
+        return {"status": "deleted", "id": convo_id}
+
     @app.post("/api/chat")
     async def chat(req: ChatRequest):
         system_prompt = None

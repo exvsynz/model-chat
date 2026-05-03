@@ -45,6 +45,13 @@ async def test_chat_requires_messages(app):
     assert resp.status_code == 422
 
 
+@pytest.mark.asyncio
+async def test_delete_conversation_not_found(app):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.delete("/api/conversations/nonexistent")
+    assert resp.status_code == 404
+
+
 def test_server_logs_warning_when_no_api_key(app, caplog):
     """Server should log a warning on startup if OPENROUTER_API_KEY is not set."""
     import os
