@@ -10,6 +10,7 @@ from core.client import chat_stream, ChatError
 from core.models import ModelRegistry
 from core.personas import PersonaStore
 from core.store import ConversationStore
+from core.usage import UsageStats, format_usage
 from cli.commands import parse_command, CommandHandler
 from cli.render import (
     print_markdown,
@@ -17,6 +18,7 @@ from cli.render import (
     print_streaming_end,
     print_info,
     print_error,
+    print_usage,
 )
 
 
@@ -38,16 +40,22 @@ async def run_chat(handler: CommandHandler, user_input: str) -> None:
     handler.messages.append({"role": "user", "content": user_input})
 
     full_response = ""
+    usage: UsageStats | None = None
     try:
-        async for token in chat_stream(
+        async for item in chat_stream(
             messages=handler.messages,
             model=handler.current_model,
             system_prompt=handler.system_prompt,
             effort=handler.effort,
         ):
-            print_streaming_token(token)
-            full_response += token
+            if isinstance(item, UsageStats):
+                usage = item
+            else:
+                print_streaming_token(item)
+                full_response += item
         print_streaming_end()
+        if usage:
+            print_usage(format_usage(usage, model=handler.current_model))
         print()
     except ChatError as e:
         print_error(str(e))
@@ -59,6 +67,7 @@ async def run_chat(handler: CommandHandler, user_input: str) -> None:
         return
 
     handler.messages.append({"role": "assistant", "content": full_response})
+    handler.last_response = full_response
 
 
 async def repl(handler: CommandHandler) -> None:

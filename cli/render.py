@@ -26,3 +26,7 @@ def print_error(text: str) -> None:
 
 def print_success(text: str) -> None:
     print(text)
+
+
+def print_usage(text: str) -> None:
+    print(f"\033[90m{text}\033[0m")

@@ -1,6 +1,8 @@
 import os
+import time
 from collections.abc import AsyncGenerator
 from openai import AsyncOpenAI
+from core.usage import UsageStats
 
 
 class ChatError(Exception):
@@ -19,7 +21,7 @@ async def chat_stream(
     model: str,
     system_prompt: str | None = None,
     effort: str | None = None,
-) -> AsyncGenerator[str, None]:
+) -> AsyncGenerator[str | UsageStats, None]:
     client = get_async_openai_client()
 
     final_messages = []
@@ -31,11 +33,26 @@ async def chat_stream(
         "model": model,
         "messages": final_messages,
         "stream": True,
+        "stream_options": {"include_usage": True},
     }
     if effort:
         kwargs["extra_body"] = {"reasoning_effort": effort}
 
+    start = time.monotonic()
     stream = await client.chat.completions.create(**kwargs)
+    usage_data = None
     async for chunk in stream:
         if chunk.choices and chunk.choices[0].delta.content:
             yield chunk.choices[0].delta.content
+        if hasattr(chunk, "usage") and chunk.usage:
+            usage_data = chunk.usage
+
+    elapsed = time.monotonic() - start
+    prompt_tokens = getattr(usage_data, "prompt_tokens", 0) if usage_data else 0
+    completion_tokens = getattr(usage_data, "completion_tokens", 0) if usage_data else 0
+    yield UsageStats(
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        total_tokens=prompt_tokens + completion_tokens,
+        elapsed_seconds=round(elapsed, 1),
+    )
