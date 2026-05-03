@@ -4,6 +4,7 @@
     import Sidebar from '$lib/Sidebar.svelte';
     import {
         fetchModels,
+        fetchAllModels,
         fetchPersonas,
         fetchConversations,
         loadConversation,
@@ -12,9 +13,11 @@
         type ModelsResponse,
         type Message,
         type ConversationSummary,
+        type OpenRouterModel,
     } from '$lib/api';
 
     let models: ModelsResponse = $state({ aliases: {}, default: '' });
+    let allModels: OpenRouterModel[] = $state([]);
     let personas: string[] = $state([]);
     let conversations: ConversationSummary[] = $state([]);
     let messages: Message[] = $state([]);
@@ -29,10 +32,12 @@
     $effect(() => {
         Promise.all([
             fetchModels(),
+            fetchAllModels(),
             fetchPersonas(),
             fetchConversations(),
-        ]).then(([m, p, c]) => {
+        ]).then(([m, am, p, c]) => {
             models = m;
+            allModels = am;
             personas = p;
             conversations = c;
             currentModel = m.default;
@@ -98,6 +103,7 @@
 <div class="h-screen flex flex-col">
     <TopBar
         {models}
+        {allModels}
         {personas}
         bind:currentModel
         bind:currentPersona

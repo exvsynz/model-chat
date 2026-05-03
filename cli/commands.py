@@ -18,6 +18,7 @@ def parse_command(text: str) -> tuple[str | None, str]:
 COMMAND_HELP = {
     "model": ("/model <name|id>", "Switch model"),
     "models": ("/models", "List available model aliases"),
+    "browse": ("/browse [search]", "Search all OpenRouter models"),
     "effort": ("/effort low|medium|high", "Set reasoning effort"),
     "file": ("/file <path>", "Add file contents to context"),
     "persona": ("/persona <name>", "Load a system prompt"),
@@ -83,6 +84,24 @@ class CommandHandler:
         aliases = self.models.list_aliases()
         lines = [f"  {alias:<25} {full_id}" for alias, full_id in aliases]
         print_info("Available models:\n" + "\n".join(lines))
+        return None
+
+    def _cmd_browse(self, args: str) -> str | None:
+        from core.models import fetch_all_models
+        try:
+            all_models = fetch_all_models()
+        except Exception as e:
+            print_error(f"Failed to fetch models: {e}")
+            return None
+        if args:
+            query = args.lower()
+            all_models = [m for m in all_models if query in m["id"].lower() or query in m["name"].lower()]
+        if not all_models:
+            print_info("No models found")
+            return None
+        lines = [f"  {m['id']:<55} {m['name']}" for m in all_models[:50]]
+        suffix = f"\n  ... and {len(all_models) - 50} more (narrow your search)" if len(all_models) > 50 else ""
+        print_info(f"Models ({len(all_models)} results):\n" + "\n".join(lines) + suffix)
         return None
 
     def _cmd_effort(self, args: str) -> str | None:

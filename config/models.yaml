@@ -1,14 +1,39 @@
 aliases:
+  # DeepSeek
   deepseek-v4-flash: deepseek/deepseek-v4-flash
+  deepseek-v4-pro: deepseek/deepseek-v4-pro
+  deepseek-v3.2: deepseek/deepseek-v3.2
   deepseek-r1: deepseek/deepseek-r1
-  gpt-4o: openai/gpt-4o
-  gpt-4o-mini: openai/gpt-4o-mini
-  o3: openai/o3
-  gemini-2.5-flash: google/gemini-2.5-flash
-  gemini-2.5-pro: google/gemini-2.5-pro
-  claude-sonnet: anthropic/claude-sonnet-4-6
-  claude-haiku: anthropic/claude-haiku-4-5-20251001
-  llama-4-maverick: meta-llama/llama-4-maverick
+  deepseek-r1-0528: deepseek/deepseek-r1-0528
+
+  # Qwen
+  qwen3-coder: qwen/qwen3-coder
+  qwen3-coder-next: qwen/qwen3-coder-next
+  qwen3-coder-flash: qwen/qwen3-coder-flash
+  qwen3-max: qwen/qwen3-max
+  qwen3-max-thinking: qwen/qwen3-max-thinking
   qwen3-235b: qwen/qwen3-235b-a22b
+  qwen3.6-max: qwen/qwen3.6-max-preview
+  qwen3.6-plus: qwen/qwen3.6-plus
+  qwen3.6-flash: qwen/qwen3.6-flash
+  qwen3.5-397b: qwen/qwen3.5-397b-a17b
+
+  # GLM
+  glm-5.1: z-ai/glm-5.1
+  glm-5: z-ai/glm-5
+  glm-5-turbo: z-ai/glm-5-turbo
+  glm-4.7: z-ai/glm-4.7
+  glm-4.7-flash: z-ai/glm-4.7-flash
+  glm-4.6: z-ai/glm-4.6
+
+  # Kimi
+  kimi-k2.6: moonshotai/kimi-k2.6
+  kimi-k2.5: moonshotai/kimi-k2.5
+  kimi-k2-thinking: moonshotai/kimi-k2-thinking
+
+  # Others (kept for convenience)
+  gpt-4o: openai/gpt-4o
+  claude-sonnet: anthropic/claude-sonnet-4-6
+  gemini-2.5-flash: google/gemini-2.5-flash
 
 default: deepseek/deepseek-v4-flash

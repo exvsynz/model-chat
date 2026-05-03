@@ -19,8 +19,18 @@ export interface Message {
     content: string;
 }
 
+export interface OpenRouterModel {
+    id: string;
+    name: string;
+}
+
 export async function fetchModels(): Promise<ModelsResponse> {
     const res = await fetch(`${BASE}/api/models`);
+    return res.json();
+}
+
+export async function fetchAllModels(): Promise<OpenRouterModel[]> {
+    const res = await fetch(`${BASE}/api/models/all`);
     return res.json();
 }
 

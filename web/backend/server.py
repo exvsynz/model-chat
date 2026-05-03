@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 from core.client import chat_stream
-from core.models import ModelRegistry
+from core.models import ModelRegistry, fetch_all_models
 from core.personas import PersonaStore
 from core.store import ConversationStore
 
@@ -54,6 +54,13 @@ def create_app() -> FastAPI:
             "aliases": dict(models.list_aliases()),
             "default": models.default,
         }
+
+    @app.get("/api/models/all")
+    def get_all_models():
+        try:
+            return fetch_all_models()
+        except Exception:
+            return []
 
     @app.get("/api/personas")
     def get_personas():
