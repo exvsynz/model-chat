@@ -100,6 +100,19 @@ async def repl(handler: CommandHandler) -> None:
             if result == "quit":
                 print_info("Goodbye!")
                 break
+            if result == "retry":
+                last_user_msg = handler.messages[-1]["content"]
+                handler.messages.pop()
+                await run_chat(handler, last_user_msg)
+            if result == "edit":
+                edit_input = await session.prompt_async(
+                    f"[{model_short}] edit> ",
+                    default=handler.edit_text or "",
+                )
+                edit_input = edit_input.strip()
+                if edit_input:
+                    await run_chat(handler, edit_input)
+                handler.edit_text = None
             continue
 
         await run_chat(handler, user_input)

@@ -1,3 +1,5 @@
+import subprocess
+import sys
 from pathlib import Path
 from core.models import ModelRegistry
 from core.personas import PersonaStore
@@ -28,6 +30,11 @@ COMMAND_HELP = {
     "list": ("/list", "List saved conversations"),
     "clear": ("/clear", "Reset conversation"),
     "multi": ("/multi", "Toggle multi-line input"),
+    "info": ("/info", "Show current session state"),
+    "retry": ("/retry", "Regenerate last response"),
+    "edit": ("/edit", "Edit and re-send last message"),
+    "copy": ("/copy", "Copy last response to clipboard"),
+    "export": ("/export <path>", "Export conversation as markdown"),
     "help": ("/help", "Show this help"),
     "quit": ("/quit", "Exit"),
 }
@@ -64,6 +71,8 @@ class CommandHandler:
         self.messages: list[dict] = []
         self.multi_line: bool = False
         self.registry = CommandRegistry()
+        self.edit_text: str | None = None
+        self.last_response: str | None = None
 
     def handle(self, cmd: str, args: str) -> str | None:
         handler = getattr(self, f"_cmd_{cmd}", None)
@@ -206,6 +215,75 @@ class CommandHandler:
         self.multi_line = not self.multi_line
         state = "on" if self.multi_line else "off"
         print_success(f"Multi-line input {state} (Alt+Enter to submit)")
+        return None
+
+    def _cmd_info(self, args: str) -> str | None:
+        model = self.current_model
+        model_short = model.split("/")[-1] if "/" in model else model
+        persona = self.persona_name or "(none)"
+        effort = self.effort or "(default)"
+        msg_count = len(self.messages)
+        print_info(f"  Model:    {model_short} ({model})")
+        print_info(f"  Persona:  {persona}")
+        print_info(f"  Effort:   {effort}")
+        print_info(f"  Messages: {msg_count}")
+        return None
+
+    def _cmd_retry(self, args: str) -> str | None:
+        if not self.messages:
+            print_error("No messages to retry")
+            return None
+        if self.messages[-1]["role"] == "assistant":
+            self.messages.pop()
+        if not self.messages or self.messages[-1]["role"] != "user":
+            print_error("No user message to retry")
+            return None
+        return "retry"
+
+    def _cmd_edit(self, args: str) -> str | None:
+        if not self.messages:
+            print_error("No messages to edit")
+            return None
+        if self.messages[-1]["role"] == "assistant":
+            self.messages.pop()
+        if self.messages and self.messages[-1]["role"] == "user":
+            self.edit_text = self.messages.pop()["content"]
+            return "edit"
+        print_error("No user message to edit")
+        return None
+
+    def _cmd_copy(self, args: str) -> str | None:
+        if not self.last_response:
+            print_error("No response to copy")
+            return None
+        try:
+            if sys.platform == "win32":
+                subprocess.run(["clip"], input=self.last_response.encode("utf-8"), check=True)
+            elif sys.platform == "darwin":
+                subprocess.run(["pbcopy"], input=self.last_response.encode("utf-8"), check=True)
+            else:
+                subprocess.run(["xclip", "-selection", "clipboard"], input=self.last_response.encode("utf-8"), check=True)
+            print_success("Copied to clipboard")
+        except Exception as e:
+            print_error(f"Failed to copy: {e}")
+        return None
+
+    def _cmd_export(self, args: str) -> str | None:
+        if not self.messages:
+            print_error("No messages to export")
+            return None
+        if not args:
+            print_error("Usage: /export <path>")
+            return None
+        path = Path(args).expanduser()
+        lines = [f"# Conversation — {self.current_model}\n"]
+        for msg in self.messages:
+            role = msg["role"].capitalize()
+            lines.append(f"## {role}\n")
+            lines.append(msg["content"])
+            lines.append("")
+        path.write_text("\n".join(lines), encoding="utf-8")
+        print_success(f"Exported {len(self.messages)} messages to {path}")
         return None
 
     def _cmd_help(self, args: str) -> str | None:
