@@ -71,12 +71,12 @@ async def repl(handler: CommandHandler) -> None:
         model_short = handler.current_model.split("/")[-1] if "/" in handler.current_model else handler.current_model
         try:
             if handler.multi_line:
-                user_input = session.prompt(
+                user_input = await session.prompt_async(
                     f"[{model_short}] > ",
                     multiline=True,
                 )
             else:
-                user_input = session.prompt(f"[{model_short}] > ")
+                user_input = await session.prompt_async(f"[{model_short}] > ")
         except (EOFError, KeyboardInterrupt):
             print_info("\nGoodbye!")
             break
