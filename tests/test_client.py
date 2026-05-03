@@ -22,9 +22,9 @@ async def test_chat_stream_yields_tokens():
         for chunk in [mock_chunk_1, mock_chunk_2, mock_chunk_3]:
             yield chunk
 
-    with patch("core.client.get_openai_client") as mock_get_client:
+    with patch("core.client.get_async_openai_client") as mock_get_client:
         mock_client = MagicMock()
-        mock_client.chat.completions.create = MagicMock(return_value=mock_stream())
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_stream())
         mock_get_client.return_value = mock_client
 
         tokens = []
@@ -45,9 +45,9 @@ async def test_chat_stream_with_system_prompt():
         chunk.choices[0].delta.content = "ok"
         yield chunk
 
-    with patch("core.client.get_openai_client") as mock_get_client:
+    with patch("core.client.get_async_openai_client") as mock_get_client:
         mock_client = MagicMock()
-        mock_client.chat.completions.create = MagicMock(return_value=mock_stream())
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_stream())
         mock_get_client.return_value = mock_client
 
         tokens = []
@@ -72,9 +72,9 @@ async def test_chat_stream_with_effort():
         chunk.choices[0].delta.content = "ok"
         yield chunk
 
-    with patch("core.client.get_openai_client") as mock_get_client:
+    with patch("core.client.get_async_openai_client") as mock_get_client:
         mock_client = MagicMock()
-        mock_client.chat.completions.create = MagicMock(return_value=mock_stream())
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_stream())
         mock_get_client.return_value = mock_client
 
         async for _ in chat_stream(
@@ -92,5 +92,5 @@ async def test_chat_stream_with_effort():
 def test_missing_api_key():
     with patch.dict("os.environ", {}, clear=True):
         with pytest.raises(ChatError, match="OPENROUTER_API_KEY"):
-            from core.client import get_openai_client
-            get_openai_client()
+            from core.client import get_async_openai_client
+            get_async_openai_client()

@@ -1,17 +1,17 @@
 import os
 from collections.abc import AsyncGenerator
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 
 class ChatError(Exception):
     pass
 
 
-def get_openai_client() -> OpenAI:
+def get_async_openai_client() -> AsyncOpenAI:
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
         raise ChatError("OPENROUTER_API_KEY environment variable not set")
-    return OpenAI(api_key=api_key, base_url="https://openrouter.ai/api/v1")
+    return AsyncOpenAI(api_key=api_key, base_url="https://openrouter.ai/api/v1")
 
 
 async def chat_stream(
@@ -20,7 +20,7 @@ async def chat_stream(
     system_prompt: str | None = None,
     effort: str | None = None,
 ) -> AsyncGenerator[str, None]:
-    client = get_openai_client()
+    client = get_async_openai_client()
 
     final_messages = []
     if system_prompt:
@@ -35,12 +35,7 @@ async def chat_stream(
     if effort:
         kwargs["extra_body"] = {"reasoning_effort": effort}
 
-    stream = client.chat.completions.create(**kwargs)
-    if hasattr(stream, "__aiter__"):
-        async for chunk in stream:
-            if chunk.choices and chunk.choices[0].delta.content:
-                yield chunk.choices[0].delta.content
-    else:
-        for chunk in stream:
-            if chunk.choices and chunk.choices[0].delta.content:
-                yield chunk.choices[0].delta.content
+    stream = await client.chat.completions.create(**kwargs)
+    async for chunk in stream:
+        if chunk.choices and chunk.choices[0].delta.content:
+            yield chunk.choices[0].delta.content
