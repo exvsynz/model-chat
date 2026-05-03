@@ -38,9 +38,9 @@ async def chat_stream(
     stream = client.chat.completions.create(**kwargs)
     if hasattr(stream, "__aiter__"):
         async for chunk in stream:
-            if chunk.choices and chunk.choices[0].delta.content is not None:
+            if chunk.choices and chunk.choices[0].delta.content:
                 yield chunk.choices[0].delta.content
     else:
         for chunk in stream:
-            if chunk.choices and chunk.choices[0].delta.content is not None:
+            if chunk.choices and chunk.choices[0].delta.content:
                 yield chunk.choices[0].delta.content
