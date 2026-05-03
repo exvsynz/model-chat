@@ -70,6 +70,29 @@ export async function deleteConversation(id: string): Promise<void> {
     await fetch(`${BASE}/api/conversations/${id}`, { method: 'DELETE' });
 }
 
+export interface Memory {
+    file: string;
+    summary: string;
+}
+
+export async function fetchMemories(): Promise<Memory[]> {
+    const res = await fetch(`${BASE}/api/memories`);
+    return res.json();
+}
+
+export async function addMemory(content: string, type: string = 'fact'): Promise<{ status: string; file: string | null }> {
+    const res = await fetch(`${BASE}/api/memories`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, type }),
+    });
+    return res.json();
+}
+
+export async function deleteMemory(slug: string): Promise<void> {
+    await fetch(`${BASE}/api/memories/${slug}`, { method: 'DELETE' });
+}
+
 export async function* streamChat(
     messages: Message[],
     model: string,

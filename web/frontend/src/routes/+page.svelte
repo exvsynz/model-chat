@@ -7,6 +7,8 @@
         fetchAllModels,
         fetchPersonas,
         fetchConversations,
+        fetchMemories,
+        deleteMemory,
         loadConversation,
         saveConversation,
         deleteConversation,
@@ -15,12 +17,14 @@
         type Message,
         type ConversationSummary,
         type OpenRouterModel,
+        type Memory,
     } from '$lib/api';
 
     let models: ModelsResponse = $state({ aliases: {}, default: '' });
     let allModels: OpenRouterModel[] = $state([]);
     let personas: string[] = $state([]);
     let conversations: ConversationSummary[] = $state([]);
+    let memories: Memory[] = $state([]);
     let messages: Message[] = $state([]);
     let currentModel = $state('');
     let currentPersona: string | null = $state(null);
@@ -36,11 +40,13 @@
             fetchAllModels(),
             fetchPersonas(),
             fetchConversations(),
-        ]).then(([m, am, p, c]) => {
+            fetchMemories(),
+        ]).then(([m, am, p, c, mem]) => {
             models = m;
             allModels = am;
             personas = p;
             conversations = c;
+            memories = mem;
             currentModel = m.default;
         });
     });
@@ -79,6 +85,7 @@
                 messages,
             });
             conversations = await fetchConversations();
+            memories = await fetchMemories();
         } catch (e: any) {
             streamingContent = '';
             messages = [...messages, { role: 'assistant', content: `Error: ${e.message}` }];
@@ -97,6 +104,11 @@
         messages = convo.messages || [];
         currentModel = convo.model || currentModel;
         currentPersona = convo.persona || null;
+    }
+
+    async function handleDeleteMemory(slug: string) {
+        await deleteMemory(slug);
+        memories = await fetchMemories();
     }
 
     function handleNew() {
@@ -122,7 +134,14 @@
         bind:currentEffort
     />
     <div class="flex flex-1 overflow-hidden">
-        <Sidebar {conversations} onLoad={handleLoad} onNew={handleNew} onDelete={handleDelete} />
+        <Sidebar
+            {conversations}
+            {memories}
+            onLoad={handleLoad}
+            onNew={handleNew}
+            onDelete={handleDelete}
+            onDeleteMemory={handleDeleteMemory}
+        />
         <div class="flex flex-col flex-1">
             <Chat {messages} {streamingContent} />
             <div class="border-t border-zinc-300 dark:border-zinc-700 p-4">

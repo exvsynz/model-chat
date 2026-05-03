@@ -1,17 +1,23 @@
 <script lang="ts">
-    import type { ConversationSummary } from './api';
+    import type { ConversationSummary, Memory } from './api';
 
     let {
         conversations = [],
+        memories = [],
         onLoad,
         onNew,
         onDelete,
+        onDeleteMemory,
     }: {
         conversations?: ConversationSummary[];
+        memories?: Memory[];
         onLoad: (id: string) => void;
         onNew: () => void;
         onDelete: (id: string) => void;
+        onDeleteMemory: (slug: string) => void;
     } = $props();
+
+    let memoriesExpanded = $state(false);
 </script>
 
 <div class="w-64 border-r border-zinc-300 dark:border-zinc-700 flex flex-col h-full bg-zinc-50 dark:bg-[rgb(20,20,20)]">
@@ -47,6 +53,37 @@
 
         {#if conversations.length === 0}
             <p class="text-xs text-zinc-500 px-3 py-2">No saved conversations</p>
+        {/if}
+    </div>
+
+    <!-- Memories section -->
+    <div class="border-t border-zinc-300 dark:border-zinc-700">
+        <button
+            onclick={() => memoriesExpanded = !memoriesExpanded}
+            class="w-full text-left px-4 py-2 text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex justify-between items-center"
+        >
+            <span>Memories ({memories.length})</span>
+            <span class="text-[10px]">{memoriesExpanded ? '▼' : '▶'}</span>
+        </button>
+        {#if memoriesExpanded}
+            <div class="px-2 pb-2 space-y-1 max-h-48 overflow-y-auto">
+                {#each memories as mem}
+                    <div class="group flex items-center rounded text-xs px-2 py-1 hover:bg-zinc-200 dark:hover:bg-zinc-700">
+                        <span class="flex-1 text-zinc-600 dark:text-zinc-400 truncate" title={mem.summary}>
+                            {mem.summary}
+                        </span>
+                        <button
+                            onclick={() => onDeleteMemory(mem.file.replace('.md', ''))}
+                            class="hidden group-hover:block text-zinc-400 hover:text-red-400 ml-1"
+                        >
+                            ✕
+                        </button>
+                    </div>
+                {/each}
+                {#if memories.length === 0}
+                    <p class="text-xs text-zinc-500 px-2 py-1">No memories yet</p>
+                {/if}
+            </div>
         {/if}
     </div>
 </div>
