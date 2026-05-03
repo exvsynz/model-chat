@@ -1,10 +1,11 @@
+import asyncio
 import subprocess
 import sys
 from pathlib import Path
 from core.models import ModelRegistry
 from core.personas import PersonaStore
 from core.store import ConversationStore
-from core.memory import MemoryStore
+from core.memory import MemoryStore, extract_memories
 from cli.render import print_info, print_error, print_success
 
 
@@ -186,6 +187,35 @@ class CommandHandler:
         }
         self.store.save(convo)
         print_success(f"Saved as {convo_id}")
+
+        # Auto-extraction (skip if at memory cap)
+        if (self.auto_memory and self.memory and len(self.messages) >= 4
+                and len(self.memory.list_all()) < self.max_memories):
+            extraction_model = self.current_model
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as pool:
+                        memories = pool.submit(
+                            asyncio.run,
+                            extract_memories(self.messages, extraction_model)
+                        ).result()
+                else:
+                    memories = loop.run_until_complete(
+                        extract_memories(self.messages, extraction_model)
+                    )
+            except Exception:
+                memories = []
+
+            saved_count = 0
+            for mem in memories:
+                if not self.memory._is_duplicate(mem["content"]):
+                    self.memory.add(mem["content"], mem.get("type", "fact"))
+                    saved_count += 1
+            if saved_count > 0:
+                print_info(f"Auto-saved {saved_count} {'memory' if saved_count == 1 else 'memories'}")
+
         return None
 
     def _cmd_load(self, args: str) -> str | None:
