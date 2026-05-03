@@ -2,10 +2,9 @@ import json
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
@@ -74,7 +73,7 @@ def create_app() -> FastAPI:
     def get_conversation(convo_id: str):
         convo = store.load(convo_id)
         if convo is None:
-            return {"error": "not found"}, 404
+            raise HTTPException(status_code=404, detail="not found")
         return convo
 
     @app.post("/api/chat")
