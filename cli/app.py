@@ -102,14 +102,16 @@ def main():
     parser.add_argument("--persona", default=None, help="Starting persona")
     parser.add_argument("--effort", choices=["low", "medium", "high"], default=None, help="Reasoning effort")
     parser.add_argument("--web", action="store_true", help="Launch web UI instead of CLI")
+    parser.add_argument("--host", default="127.0.0.1", help="Web server host (default: 127.0.0.1)")
+    parser.add_argument("--port", type=int, default=8000, help="Web server port (default: 8000)")
     args = parser.parse_args()
 
     if args.web:
         import webbrowser
         import uvicorn
         from web.backend.server import create_app
-        webbrowser.open("http://127.0.0.1:8000")
-        uvicorn.run(create_app(), host="127.0.0.1", port=8000)
+        webbrowser.open(f"http://{args.host}:{args.port}")
+        uvicorn.run(create_app(), host=args.host, port=args.port)
         return
 
     models = ModelRegistry.from_bundled()
