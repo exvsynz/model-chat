@@ -3,7 +3,7 @@ import asyncio
 from pathlib import Path
 
 from prompt_toolkit import PromptSession
-from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.history import FileHistory
 
 from core.client import chat_stream, ChatError
@@ -12,6 +12,7 @@ from core.personas import PersonaStore
 from core.store import ConversationStore
 from core.usage import UsageStats, format_usage
 from cli.commands import parse_command, CommandHandler
+from cli.completers import ChatCompleter
 from cli.render import (
     print_markdown,
     print_streaming_token,
@@ -26,8 +27,7 @@ DATA_DIR = Path.home() / ".model-chat"
 
 
 def get_prompt_session(handler: CommandHandler) -> PromptSession:
-    commands = ["/" + c for c in handler.registry.list_commands()]
-    completer = WordCompleter(commands, sentence=True)
+    completer = ChatCompleter(handler)
     history_path = DATA_DIR / "history"
     history_path.parent.mkdir(parents=True, exist_ok=True)
     return PromptSession(
@@ -81,11 +81,11 @@ async def repl(handler: CommandHandler) -> None:
         try:
             if handler.multi_line:
                 user_input = await session.prompt_async(
-                    f"[{model_short}] > ",
+                    HTML(f"<aaa fg='ansicyan'>[{model_short}]</aaa> &gt; "),
                     multiline=True,
                 )
             else:
-                user_input = await session.prompt_async(f"[{model_short}] > ")
+                user_input = await session.prompt_async(HTML(f"<aaa fg='ansicyan'>[{model_short}]</aaa> &gt; "))
         except (EOFError, KeyboardInterrupt):
             print_info("\nGoodbye!")
             break
@@ -106,7 +106,7 @@ async def repl(handler: CommandHandler) -> None:
                 await run_chat(handler, last_user_msg)
             if result == "edit":
                 edit_input = await session.prompt_async(
-                    f"[{model_short}] edit> ",
+                    HTML(f"<aaa fg='ansiyellow'>[{model_short}] edit</aaa> &gt; "),
                     default=handler.edit_text or "",
                 )
                 edit_input = edit_input.strip()
