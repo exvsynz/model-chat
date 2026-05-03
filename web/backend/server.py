@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 from core.client import chat_stream
+from core.memory import MemoryStore, extract_memories
 from core.models import ModelRegistry, fetch_all_models
 from core.personas import PersonaStore
 from core.store import ConversationStore
@@ -38,6 +39,11 @@ class SaveRequest(BaseModel):
     messages: list[dict]
 
 
+class MemoryRequest(BaseModel):
+    content: str
+    type: str = "fact"
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title="model-chat")
 
@@ -54,6 +60,7 @@ def create_app() -> FastAPI:
     models = ModelRegistry.from_bundled()
     personas = PersonaStore.from_bundled()
     store = ConversationStore(DATA_DIR / "conversations")
+    memory = MemoryStore(DATA_DIR / "memory")
 
     @app.get("/api/models")
     def get_models():
@@ -98,6 +105,10 @@ def create_app() -> FastAPI:
         if req.persona:
             system_prompt = personas.load(req.persona)
 
+        memory_section = memory.format_for_prompt()
+        if memory_section:
+            system_prompt = (system_prompt or "") + "\n\n" + memory_section
+
         async def event_generator():
             async for token in chat_stream(
                 messages=req.messages,
@@ -111,9 +122,36 @@ def create_app() -> FastAPI:
         return EventSourceResponse(event_generator())
 
     @app.post("/api/conversations/save")
-    def save_conversation(req: SaveRequest):
+    async def save_conversation(req: SaveRequest):
         store.save(req.model_dump())
-        return {"status": "saved", "id": req.id}
+        extracted = []
+        if len(req.messages) >= 4:
+            try:
+                raw_memories = await extract_memories(req.messages, req.model)
+                for mem in raw_memories:
+                    if not memory._is_duplicate(mem["content"]):
+                        memory.add(mem["content"], mem.get("type", "fact"))
+                        extracted.append(mem["content"])
+            except Exception:
+                pass
+        return {"status": "saved", "id": req.id, "extracted_memories": extracted}
+
+    @app.get("/api/memories")
+    def get_memories():
+        return memory.list_all()
+
+    @app.post("/api/memories")
+    def add_memory(req: MemoryRequest):
+        if memory._is_duplicate(req.content):
+            return {"status": "duplicate", "file": None}
+        filename = memory.add(req.content, req.type)
+        return {"status": "saved", "file": filename}
+
+    @app.delete("/api/memories/{slug}")
+    def delete_memory(slug: str):
+        if not memory.remove(slug):
+            raise HTTPException(status_code=404, detail="not found")
+        return {"status": "deleted", "slug": slug}
 
     static_dir = Path(__file__).parent.parent / "static"
     if static_dir.exists():

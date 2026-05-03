@@ -72,3 +72,49 @@ def test_server_logs_warning_when_no_static_build(app, caplog):
             from web.backend.server import create_app
             test_app = create_app()
     assert any("static" in r.message.lower() for r in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_get_memories_empty(app):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.get("/api/memories")
+    assert resp.status_code == 200
+    assert isinstance(resp.json(), list)
+
+
+@pytest.mark.asyncio
+async def test_post_memory(app):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.post("/api/memories", json={"content": "User is Josh", "type": "user"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "saved"
+    assert "file" in data
+
+
+@pytest.mark.asyncio
+async def test_get_memories_after_add(app):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        await client.post("/api/memories", json={"content": "User is Josh", "type": "user"})
+        resp = await client.get("/api/memories")
+    assert resp.status_code == 200
+    memories = resp.json()
+    assert len(memories) >= 1
+    assert any("Josh" in m["summary"] for m in memories)
+
+
+@pytest.mark.asyncio
+async def test_delete_memory(app):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.post("/api/memories", json={"content": "User is Josh", "type": "user"})
+        slug = resp.json()["file"].removesuffix(".md")
+        resp = await client.delete(f"/api/memories/{slug}")
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "deleted"
+
+
+@pytest.mark.asyncio
+async def test_delete_memory_not_found(app):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.delete("/api/memories/nonexistent")
+    assert resp.status_code == 404
