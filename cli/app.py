@@ -105,8 +105,11 @@ def main():
     args = parser.parse_args()
 
     if args.web:
-        from web.backend.server import main as web_main
-        web_main()
+        import webbrowser
+        import uvicorn
+        from web.backend.server import create_app
+        webbrowser.open("http://127.0.0.1:8000")
+        uvicorn.run(create_app(), host="127.0.0.1", port=8000)
         return
 
     models = ModelRegistry.from_bundled()
