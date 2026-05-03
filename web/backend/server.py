@@ -32,6 +32,7 @@ class SaveRequest(BaseModel):
     id: str
     model: str
     persona: str | None = None
+    title: str | None = None
     created_at: str
     updated_at: str
     messages: list[dict]

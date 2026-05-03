@@ -1,32 +1,37 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>model-chat</title>
-    <link href="/_app/immutable/entry/start.CA4cjSFY.js" rel="modulepreload">
-		<link href="/_app/immutable/chunks/By07HFJG.js" rel="modulepreload">
+    <script>
+        if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        }
+    </script>
+    <link href="/_app/immutable/entry/start.BWJ2SmDi.js" rel="modulepreload">
+		<link href="/_app/immutable/chunks/_pzZ1Azt.js" rel="modulepreload">
 		<link href="/_app/immutable/chunks/4kW3xU_A.js" rel="modulepreload">
-		<link href="/_app/immutable/entry/app.BD4mJBab.js" rel="modulepreload">
+		<link href="/_app/immutable/entry/app.QEW87_Kb.js" rel="modulepreload">
 		<link href="/_app/immutable/chunks/Dj6f-nJM.js" rel="modulepreload">
 		<link href="/_app/immutable/chunks/DEDqjojZ.js" rel="modulepreload">
-		<link href="/_app/immutable/nodes/0.DQ6SpBBS.js" rel="modulepreload">
+		<link href="/_app/immutable/nodes/0.Dh1k4iiU.js" rel="modulepreload">
 		
-		<link href="/_app/immutable/assets/0.B3AlEk36.css" rel="stylesheet">
+		<link href="/_app/immutable/assets/0.DYjvHc1A.css" rel="stylesheet">
 </head>
-<body data-sveltekit-prerender="true">
+<body>
     <div style="display: contents">
 			<script>
 				{
-					__sveltekit_10ikgcf = {
+					__sveltekit_31ke9d = {
 						base: ""
 					};
 
 					const element = document.currentScript.parentElement;
 
 					Promise.all([
-						import("/_app/immutable/entry/start.CA4cjSFY.js"),
-						import("/_app/immutable/entry/app.BD4mJBab.js")
+						import("/_app/immutable/entry/start.BWJ2SmDi.js"),
+						import("/_app/immutable/entry/app.QEW87_Kb.js")
 					]).then(([kit, app]) => {
 						kit.start(app, element);
 					});

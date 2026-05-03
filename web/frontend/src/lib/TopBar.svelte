@@ -21,6 +21,14 @@
     let showDropdown = $state(false);
     let inputEl: HTMLInputElement | undefined = $state();
 
+    let isDark = $state(document.documentElement.classList.contains('dark'));
+
+    function toggleTheme() {
+        isDark = !isDark;
+        document.documentElement.classList.toggle('dark', isDark);
+        localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    }
+
     let currentModelName = $derived(
         allModels.find(m => m.id === currentModel)?.name
         || Object.entries(models.aliases).find(([_, id]) => id === currentModel)?.[0]
@@ -61,7 +69,7 @@
     }
 </script>
 
-<div class="flex items-center gap-4 px-4 py-2 bg-zinc-800 border-b border-zinc-700">
+<div class="flex items-center gap-4 px-4 py-2 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700">
     <span class="text-sm font-semibold text-zinc-400">model-chat</span>
 
     <div class="relative">
@@ -73,14 +81,14 @@
             onfocus={handleInputFocus}
             onblur={handleInputBlur}
             placeholder="Search models..."
-            class="bg-zinc-700 text-zinc-100 text-sm rounded px-2 py-1 border border-zinc-600 focus:outline-none focus:border-zinc-400 w-72"
+            class="bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm rounded px-2 py-1 border border-zinc-300 dark:border-zinc-600 focus:outline-none focus:border-zinc-400 w-72"
         />
         {#if showDropdown}
-            <div class="absolute top-full left-0 mt-1 w-96 max-h-80 overflow-y-auto bg-zinc-800 border border-zinc-600 rounded-lg shadow-xl z-50">
+            <div class="absolute top-full left-0 mt-1 w-96 max-h-80 overflow-y-auto bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-lg shadow-xl z-50">
                 {#each filteredModels as model}
                     <button
                         onmousedown={() => selectModel(model.id)}
-                        class="w-full text-left px-3 py-2 text-sm hover:bg-zinc-700 transition-colors {model.id === currentModel ? 'bg-zinc-700 text-blue-400' : 'text-zinc-300'}"
+                        class="w-full text-left px-3 py-2 text-sm hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors {model.id === currentModel ? 'bg-zinc-200 dark:bg-zinc-700 text-blue-400' : 'text-zinc-700 dark:text-zinc-300'}"
                     >
                         <div class="truncate font-medium">{model.name}</div>
                         <div class="text-xs text-zinc-500 truncate">{model.id}</div>
@@ -96,7 +104,7 @@
     <div class="flex gap-1">
         {#each ['low', 'medium', 'high'] as level}
             <button
-                class="px-2 py-1 text-xs rounded {currentEffort === level ? 'bg-blue-600 text-white' : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'}"
+                class="px-2 py-1 text-xs rounded {currentEffort === level ? 'bg-blue-600 text-white' : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-600'}"
                 onclick={() => setEffort(level)}
             >
                 {level}
@@ -107,11 +115,19 @@
     <select
         value={currentPersona || ''}
         onchange={onPersonaChange}
-        class="bg-zinc-700 text-zinc-100 text-sm rounded px-2 py-1 border border-zinc-600 focus:outline-none focus:border-zinc-400"
+        class="bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm rounded px-2 py-1 border border-zinc-300 dark:border-zinc-600 focus:outline-none focus:border-zinc-400"
     >
         <option value="">No persona</option>
         {#each personas as name}
             <option value={name}>{name}</option>
         {/each}
     </select>
+
+    <button
+        onclick={toggleTheme}
+        class="ml-auto px-2 py-1 text-sm rounded bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-600"
+        title="Toggle theme"
+    >
+        {isDark ? '☀' : '●'}
+    </button>
 </div>

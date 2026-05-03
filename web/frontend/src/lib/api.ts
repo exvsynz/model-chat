@@ -9,6 +9,7 @@ export interface ConversationSummary {
     id: string;
     model: string;
     persona: string;
+    title: string;
     created_at: string;
     updated_at: string;
     message_count: number;
@@ -53,6 +54,7 @@ export async function saveConversation(convo: {
     id: string;
     model: string;
     persona: string | null;
+    title: string | null;
     created_at: string;
     updated_at: string;
     messages: Message[];
@@ -62,6 +64,10 @@ export async function saveConversation(convo: {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(convo),
     });
+}
+
+export async function deleteConversation(id: string): Promise<void> {
+    await fetch(`${BASE}/api/conversations/${id}`, { method: 'DELETE' });
 }
 
 export async function* streamChat(

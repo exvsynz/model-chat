@@ -43,12 +43,12 @@
         <div class="max-w-3xl mx-auto">
             {#if msg.role === 'user'}
                 <div class="flex justify-end">
-                    <div class="bg-zinc-700 rounded-2xl px-4 py-2 max-w-[80%]">
+                    <div class="bg-zinc-200 dark:bg-zinc-700 rounded-2xl px-4 py-2 max-w-[80%]">
                         <p class="text-sm whitespace-pre-wrap">{msg.content}</p>
                     </div>
                 </div>
             {:else if msg.role === 'assistant'}
-                <div class="prose prose-invert prose-sm max-w-none">
+                <div class="prose dark:prose-invert prose-sm max-w-none">
                     {@html renderMarkdown(msg.content)}
                 </div>
             {/if}
