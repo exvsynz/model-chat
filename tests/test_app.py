@@ -80,3 +80,44 @@ def test_main_model_arg_resolves():
 
         mock_registry.resolve.assert_called_with("deepseek-r1")
         assert mock_handler.current_model == "deepseek/deepseek-r1"
+
+
+@pytest.mark.asyncio
+async def test_spinner_task_outputs_frames():
+    """_spinner_task prints spinner frames with elapsed time."""
+    import asyncio
+    import time
+    from cli.app import _spinner_task
+
+    output = []
+    with patch("builtins.print", side_effect=lambda *a, **kw: output.append(a[0] if a else "")):
+        task = asyncio.create_task(_spinner_task(time.monotonic()))
+        await asyncio.sleep(0.25)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    assert len(output) >= 2
+    assert "Thinking..." in output[0]
+    assert "s" in output[0]
+
+
+@pytest.mark.asyncio
+async def test_spinner_task_cancels_cleanly():
+    """_spinner_task does not raise when cancelled."""
+    import asyncio
+    import time
+    from cli.app import _spinner_task
+
+    with patch("builtins.print"):
+        task = asyncio.create_task(_spinner_task(time.monotonic()))
+        await asyncio.sleep(0.1)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    assert task.done() and not task.cancelled()

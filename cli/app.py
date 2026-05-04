@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import time
 from pathlib import Path
 
 from prompt_toolkit import PromptSession
@@ -25,6 +26,21 @@ from cli.render import (
 
 
 DATA_DIR = Path.home() / ".model-chat"
+
+SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+
+
+async def _spinner_task(start_time: float) -> None:
+    idx = 0
+    try:
+        while True:
+            elapsed = time.monotonic() - start_time
+            frame = SPINNER_FRAMES[idx % len(SPINNER_FRAMES)]
+            print(f"\r{frame} Thinking... {elapsed:.1f}s", end="", flush=True)
+            idx += 1
+            await asyncio.sleep(0.08)
+    except asyncio.CancelledError:
+        return
 
 
 def get_prompt_session(handler: CommandHandler) -> PromptSession:
