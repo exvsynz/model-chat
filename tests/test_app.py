@@ -121,3 +121,49 @@ async def test_spinner_task_cancels_cleanly():
             pass
 
     assert task.done() and not task.cancelled()
+
+
+@pytest.mark.asyncio
+async def test_run_chat_shows_and_clears_spinner():
+    """run_chat starts spinner, clears it on first token."""
+    import asyncio
+    import time
+    from cli.app import run_chat
+    from core.usage import UsageStats
+
+    handler = MagicMock()
+    handler.messages = []
+    handler.current_model = "test/model"
+    handler.system_prompt = None
+    handler.effort = None
+    handler.memory = None
+    handler.last_response = None
+
+    async def fake_stream(*a, **kw):
+        await asyncio.sleep(0.15)
+        yield "Hello"
+        yield " world"
+        yield UsageStats(prompt_tokens=10, completion_tokens=5, total_tokens=15, elapsed_seconds=1.0)
+
+    printed = []
+
+    def capture_print(*args, **kwargs):
+        if args:
+            printed.append(str(args[0]))
+
+    with patch("cli.app.chat_stream", side_effect=fake_stream), \
+         patch("builtins.print", side_effect=capture_print), \
+         patch("cli.app.print_streaming_token", side_effect=lambda t: printed.append(f"TOKEN:{t}")), \
+         patch("cli.app.print_streaming_end"), \
+         patch("cli.app.print_usage"):
+        await run_chat(handler, "hi")
+
+    spinner_frames = [p for p in printed if "Thinking..." in p]
+    assert len(spinner_frames) >= 1
+
+    clear_frames = [p for p in printed if "\r\033[K" in p]
+    assert len(clear_frames) >= 1
+
+    token_frames = [p for p in printed if p.startswith("TOKEN:")]
+    assert "TOKEN:Hello" in token_frames
+    assert "TOKEN: world" in token_frames

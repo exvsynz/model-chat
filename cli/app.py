@@ -58,6 +58,8 @@ async def run_chat(handler: CommandHandler, user_input: str) -> None:
 
     full_response = ""
     usage: UsageStats | None = None
+    spinner = asyncio.create_task(_spinner_task(time.monotonic()))
+    first_token = True
     try:
         memory_section = handler.memory.format_for_prompt() if handler.memory else None
         if memory_section:
@@ -74,17 +76,28 @@ async def run_chat(handler: CommandHandler, user_input: str) -> None:
             if isinstance(item, UsageStats):
                 usage = item
             else:
+                if first_token:
+                    spinner.cancel()
+                    print("\r\033[K", end="", flush=True)
+                    first_token = False
                 print_streaming_token(item)
                 full_response += item
+        if first_token:
+            spinner.cancel()
+            print("\r\033[K", end="", flush=True)
         print_streaming_end()
         if usage:
             print_usage(format_usage(usage, model=handler.current_model))
         print()
     except ChatError as e:
+        spinner.cancel()
+        print("\r\033[K", end="", flush=True)
         print_error(str(e))
         handler.messages.pop()
         return
     except Exception as e:
+        spinner.cancel()
+        print("\r\033[K", end="", flush=True)
         print_error(f"API error: {e}")
         handler.messages.pop()
         return
