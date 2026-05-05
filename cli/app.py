@@ -7,7 +7,9 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.history import FileHistory
 
-from core.client import chat_stream, ChatError
+from core.client import ChatError
+from core.agent import AgentLoop, TextDelta, ToolCallStart, ToolResult, Finished
+from core.tools import create_default_registry
 from core.models import ModelRegistry
 from core.personas import PersonaStore
 from core.store import ConversationStore
@@ -22,6 +24,8 @@ from cli.render import (
     print_info,
     print_error,
     print_usage,
+    print_tool_call,
+    print_tool_result,
 )
 
 
@@ -56,53 +60,85 @@ def get_prompt_session(handler: CommandHandler) -> PromptSession:
 async def run_chat(handler: CommandHandler, user_input: str) -> None:
     handler.messages.append({"role": "user", "content": user_input})
 
-    full_response = ""
-    usage: UsageStats | None = None
+    work_dir = Path.cwd()
+    registry = create_default_registry(work_dir=work_dir)
+
+    memory_section = handler.memory.format_for_prompt() if handler.memory else None
+    if memory_section:
+        effective_prompt = (handler.system_prompt or "") + "\n\n" + memory_section
+    else:
+        effective_prompt = handler.system_prompt
+
+    async def ask_permission(name: str, arguments: dict) -> bool:
+        if name in handler.allowed_tools:
+            return True
+        print_tool_call(name, arguments)
+        try:
+            answer = input("  Allow? (y/n/a): ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            return False
+        if answer == "a":
+            handler.allowed_tools.add(name)
+            return True
+        return answer == "y"
+
+    msg_snapshot = len(handler.messages)
+
+    loop = AgentLoop(
+        model=handler.current_model,
+        messages=handler.messages,
+        system_prompt=effective_prompt,
+        tools=registry,
+        permission_fn=ask_permission,
+        effort=handler.effort,
+    )
+
     spinner = asyncio.create_task(_spinner_task(time.monotonic()))
     first_token = True
-    try:
-        memory_section = handler.memory.format_for_prompt() if handler.memory else None
-        if memory_section:
-            effective_prompt = (handler.system_prompt or "") + "\n\n" + memory_section
-        else:
-            effective_prompt = handler.system_prompt
+    full_response = ""
 
-        async for item in chat_stream(
-            messages=handler.messages,
-            model=handler.current_model,
-            system_prompt=effective_prompt,
-            effort=handler.effort,
-        ):
-            if isinstance(item, UsageStats):
-                usage = item
-            else:
+    try:
+        async for event in loop.run():
+            if isinstance(event, TextDelta):
                 if first_token:
                     spinner.cancel()
                     print("\r\033[K", end="", flush=True)
                     first_token = False
-                print_streaming_token(item)
-                full_response += item
-        if first_token:
-            spinner.cancel()
-            print("\r\033[K", end="", flush=True)
-        print_streaming_end()
-        if usage:
-            print_usage(format_usage(usage, model=handler.current_model))
-        print()
+                print_streaming_token(event.content)
+                full_response += event.content
+            elif isinstance(event, ToolCallStart):
+                if first_token:
+                    spinner.cancel()
+                    print("\r\033[K", end="", flush=True)
+                    first_token = False
+                if not registry.needs_permission(event.name):
+                    print_tool_call(event.name, event.arguments)
+            elif isinstance(event, ToolResult):
+                print_tool_result(event.name, event.output, event.is_error)
+                # Restart spinner for next API call
+                spinner = asyncio.create_task(_spinner_task(time.monotonic()))
+                first_token = True
+            elif isinstance(event, Finished):
+                if first_token:
+                    spinner.cancel()
+                    print("\r\033[K", end="", flush=True)
+                print_streaming_end()
+                if event.usage and event.usage.total_tokens > 0:
+                    print_usage(format_usage(event.usage, model=handler.current_model))
+                print()
     except ChatError as e:
         spinner.cancel()
         print("\r\033[K", end="", flush=True)
         print_error(str(e))
-        handler.messages.pop()
+        del handler.messages[msg_snapshot:]
         return
     except Exception as e:
         spinner.cancel()
         print("\r\033[K", end="", flush=True)
         print_error(f"API error: {e}")
-        handler.messages.pop()
+        del handler.messages[msg_snapshot:]
         return
 
-    handler.messages.append({"role": "assistant", "content": full_response})
     handler.last_response = full_response
 
 

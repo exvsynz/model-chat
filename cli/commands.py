@@ -83,6 +83,7 @@ class CommandHandler:
         self.memory = memory
         self.auto_memory: bool = True
         self.max_memories: int = 100
+        self.allowed_tools: set[str] = set()
 
     def handle(self, cmd: str, args: str) -> str | None:
         handler = getattr(self, f"_cmd_{cmd}", None)

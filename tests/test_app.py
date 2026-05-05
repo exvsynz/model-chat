@@ -129,6 +129,7 @@ async def test_run_chat_shows_and_clears_spinner():
     import asyncio
     import time
     from cli.app import run_chat
+    from core.client import ContentDelta, StreamEnd
     from core.usage import UsageStats
 
     handler = MagicMock()
@@ -138,12 +139,16 @@ async def test_run_chat_shows_and_clears_spinner():
     handler.effort = None
     handler.memory = None
     handler.last_response = None
+    handler.allowed_tools = set()
 
     async def fake_stream(*a, **kw):
         await asyncio.sleep(0.15)
-        yield "Hello"
-        yield " world"
-        yield UsageStats(prompt_tokens=10, completion_tokens=5, total_tokens=15, elapsed_seconds=1.0)
+        yield ContentDelta(text="Hello")
+        yield ContentDelta(text=" world")
+        yield StreamEnd(
+            usage=UsageStats(prompt_tokens=10, completion_tokens=5, total_tokens=15, elapsed_seconds=1.0),
+            finish_reason="stop",
+        )
 
     printed = []
 
@@ -151,7 +156,7 @@ async def test_run_chat_shows_and_clears_spinner():
         if args:
             printed.append(str(args[0]))
 
-    with patch("cli.app.chat_stream", side_effect=fake_stream), \
+    with patch("core.agent.stream_completion", side_effect=fake_stream), \
          patch("builtins.print", side_effect=capture_print), \
          patch("cli.app.print_streaming_token", side_effect=lambda t: printed.append(f"TOKEN:{t}")), \
          patch("cli.app.print_streaming_end"), \
