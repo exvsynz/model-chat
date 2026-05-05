@@ -33,3 +33,48 @@ def test_print_markdown():
     with patch("cli.render._console") as mock_console:
         print_markdown("# Hello")
         mock_console.print.assert_called_once()
+
+
+def test_print_tool_call(capsys):
+    """print_tool_call displays tool name and args."""
+    from cli.render import print_tool_call
+    print_tool_call("read_file", {"path": "src/main.py"})
+    captured = capsys.readouterr()
+    assert "read_file" in captured.out
+    assert "src/main.py" in captured.out
+
+
+def test_print_tool_result_short(capsys):
+    """print_tool_result shows short results fully."""
+    from cli.render import print_tool_result
+    print_tool_result("read_file", "1\thello\n2\tworld", is_error=False)
+    captured = capsys.readouterr()
+    assert "hello" in captured.out
+    assert "world" in captured.out
+
+
+def test_print_tool_result_truncated(capsys):
+    """print_tool_result truncates long results."""
+    from cli.render import print_tool_result
+    long_output = "\n".join(f"{i}\tline {i}" for i in range(1, 51))
+    print_tool_result("read_file", long_output, is_error=False)
+    captured = capsys.readouterr()
+    assert "line 1" in captured.out
+    assert "lines total" in captured.out
+
+
+def test_print_tool_result_bash_not_truncated(capsys):
+    """print_tool_result does not truncate bash output."""
+    from cli.render import print_tool_result
+    long_output = "\n".join(f"output line {i}" for i in range(1, 51))
+    print_tool_result("bash", long_output, is_error=False)
+    captured = capsys.readouterr()
+    assert "output line 50" in captured.out
+
+
+def test_print_tool_result_error(capsys):
+    """print_tool_result shows errors in red."""
+    from cli.render import print_tool_result
+    print_tool_result("bash", "Error: command not found", is_error=True)
+    captured = capsys.readouterr()
+    assert "Error" in captured.out
