@@ -180,7 +180,9 @@ def create_default_registry(work_dir: Path) -> ToolRegistry:
     async def write_file(args: dict) -> str:
         rel_path = Path(args["path"])
         target = (work_dir / rel_path).resolve()
-        if not str(target).startswith(str(work_dir.resolve())):
+        try:
+            target.relative_to(work_dir.resolve())
+        except ValueError:
             return "Error: write denied — path resolves outside working directory"
         target.parent.mkdir(parents=True, exist_ok=True)
         content = args["content"]
@@ -218,6 +220,7 @@ def create_default_registry(work_dir: Path) -> ToolRegistry:
             return output if output.strip() else "(no output)"
         except asyncio.TimeoutError:
             proc.kill()
+            await proc.wait()
             return "Error: command timed out after 120 seconds"
         except Exception as e:
             return f"Error running command: {e}"

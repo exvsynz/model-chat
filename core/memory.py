@@ -169,7 +169,7 @@ async def extract_memories(messages: list[dict], model: str) -> list[dict]:
         extraction_messages = [
             {"role": "system", "content": EXTRACTION_PROMPT},
             {"role": "user", "content": "\n".join(
-                f"{m['role'].upper()}: {m['content']}" for m in recent
+                f"{m['role'].upper()}: {m.get('content', '')}" for m in recent if m.get('content')
             )},
         ]
         response = await client.chat.completions.create(

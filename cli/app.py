@@ -115,7 +115,7 @@ async def run_chat(handler: CommandHandler, user_input: str) -> None:
                     print_tool_call(event.name, event.arguments)
             elif isinstance(event, ToolResult):
                 print_tool_result(event.name, event.output, event.is_error)
-                # Restart spinner for next API call
+                spinner.cancel()
                 spinner = asyncio.create_task(_spinner_task(time.monotonic()))
                 first_token = True
             elif isinstance(event, Finished):
