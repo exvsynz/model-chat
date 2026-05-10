@@ -13,6 +13,7 @@
         saveConversation,
         deleteConversation,
         streamChat,
+        type ChatEvent,
         type ModelsResponse,
         type Message,
         type ConversationSummary,
@@ -61,8 +62,10 @@
         streamingContent = '';
 
         try {
-            for await (const token of streamChat(messages, currentModel, currentPersona, currentEffort)) {
-                streamingContent += token;
+            for await (const event of streamChat(messages, currentModel, currentPersona, currentEffort)) {
+                if (event.type === 'text') {
+                    streamingContent += event.content;
+                }
             }
             messages = [...messages, { role: 'assistant', content: streamingContent }];
             streamingContent = '';

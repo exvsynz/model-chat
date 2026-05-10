@@ -1,8 +1,9 @@
 import asyncio
+import json
 import os
 import pytest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock
 
 
 @pytest.mark.asyncio
@@ -178,11 +179,167 @@ def test_registry_generates_openai_schemas():
     registry = create_default_registry(work_dir=Path("."))
     schemas = registry.get_tool_schemas()
 
-    assert len(schemas) == 5
+    assert len(schemas) == 6
     names = {s["function"]["name"] for s in schemas}
-    assert names == {"read_file", "write_file", "bash", "glob", "grep"}
+    assert names == {"read_file", "write_file", "bash", "glob", "grep", "web_search"}
 
     for schema in schemas:
         assert schema["type"] == "function"
         assert "description" in schema["function"]
         assert "parameters" in schema["function"]
+
+
+@pytest.mark.asyncio
+async def test_web_search_missing_api_key():
+    """web_search returns error when BRAVE_SEARCH_API_KEY is not set."""
+    from core.tools import create_default_registry
+
+    registry = create_default_registry(work_dir=Path("."))
+    with patch.dict(os.environ, {}, clear=True):
+        result = await registry.execute("web_search", {"query": "test"})
+    assert "BRAVE_SEARCH_API_KEY" in result
+
+
+@pytest.mark.asyncio
+async def test_web_search_returns_results():
+    """web_search parses Brave API response into formatted results."""
+    from core.tools import create_default_registry
+
+    mock_response = {
+        "web": {
+            "results": [
+                {"title": "Result One", "url": "https://example.com/1", "description": "First result snippet"},
+                {"title": "Result Two", "url": "https://example.com/2", "description": "Second result snippet"},
+            ]
+        }
+    }
+
+    mock_resp = AsyncMock()
+    mock_resp.status_code = 200
+    mock_resp.json = lambda: mock_response
+    mock_resp.raise_for_status = lambda: None
+
+    registry = create_default_registry(work_dir=Path("."))
+    with patch.dict(os.environ, {"BRAVE_SEARCH_API_KEY": "test-key"}):
+        with patch("core.tools.httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_client.get.return_value = mock_resp
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client_cls.return_value = mock_client
+
+            result = await registry.execute("web_search", {"query": "test query"})
+
+    assert "Result One" in result
+    assert "https://example.com/1" in result
+    assert "Result Two" in result
+    assert "First result snippet" in result
+
+
+@pytest.mark.asyncio
+async def test_web_search_no_results():
+    """web_search handles empty results gracefully."""
+    from core.tools import create_default_registry
+
+    mock_resp = AsyncMock()
+    mock_resp.status_code = 200
+    mock_resp.json = lambda: {"web": {"results": []}}
+    mock_resp.raise_for_status = lambda: None
+
+    registry = create_default_registry(work_dir=Path("."))
+    with patch.dict(os.environ, {"BRAVE_SEARCH_API_KEY": "test-key"}):
+        with patch("core.tools.httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_client.get.return_value = mock_resp
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client_cls.return_value = mock_client
+
+            result = await registry.execute("web_search", {"query": "nonexistent"})
+
+    assert result == "No results found"
+
+
+@pytest.mark.asyncio
+async def test_web_search_http_error():
+    """web_search handles HTTP errors from Brave API."""
+    from core.tools import create_default_registry
+    import httpx
+
+    registry = create_default_registry(work_dir=Path("."))
+
+    mock_resp = AsyncMock()
+    mock_resp.status_code = 429
+    mock_resp.raise_for_status = lambda: (_ for _ in ()).throw(
+        httpx.HTTPStatusError("rate limited", request=AsyncMock(), response=mock_resp)
+    )
+
+    with patch.dict(os.environ, {"BRAVE_SEARCH_API_KEY": "test-key"}):
+        with patch("core.tools.httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_client.get.return_value = mock_resp
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client_cls.return_value = mock_client
+
+            result = await registry.execute("web_search", {"query": "test"})
+
+    assert "429" in result
+
+
+@pytest.mark.asyncio
+async def test_web_search_network_error():
+    """web_search handles network failures gracefully."""
+    from core.tools import create_default_registry
+    import httpx
+
+    registry = create_default_registry(work_dir=Path("."))
+
+    with patch.dict(os.environ, {"BRAVE_SEARCH_API_KEY": "test-key"}):
+        with patch("core.tools.httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_client.get.side_effect = httpx.ConnectError("connection refused")
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client_cls.return_value = mock_client
+
+            result = await registry.execute("web_search", {"query": "test"})
+
+    assert "Error" in result
+    assert "failed" in result
+
+
+@pytest.mark.asyncio
+async def test_web_search_respects_count_param():
+    """web_search passes count parameter and caps at 10."""
+    from core.tools import create_default_registry
+
+    mock_response = {
+        "web": {
+            "results": [
+                {"title": f"Result {i}", "url": f"https://example.com/{i}", "description": f"Snippet {i}"}
+                for i in range(3)
+            ]
+        }
+    }
+
+    mock_resp = AsyncMock()
+    mock_resp.json = lambda: mock_response
+    mock_resp.raise_for_status = lambda: None
+
+    registry = create_default_registry(work_dir=Path("."))
+    with patch.dict(os.environ, {"BRAVE_SEARCH_API_KEY": "test-key"}):
+        with patch("core.tools.httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_client.get.return_value = mock_resp
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client_cls.return_value = mock_client
+
+            result = await registry.execute("web_search", {"query": "test", "count": 3})
+
+            call_args = mock_client.get.call_args
+            assert call_args[1]["params"]["count"] == 3
+
+    assert "Result 0" in result
+    assert "Result 2" in result

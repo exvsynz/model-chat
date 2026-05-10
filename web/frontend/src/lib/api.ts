@@ -93,12 +93,18 @@ export async function deleteMemory(slug: string): Promise<void> {
     await fetch(`${BASE}/api/memories/${slug}`, { method: 'DELETE' });
 }
 
+export type ChatEvent =
+    | { type: 'text'; content: string }
+    | { type: 'tool_call'; id: string; name: string; arguments: Record<string, unknown> }
+    | { type: 'tool_result'; id: string; name: string; output: string; is_error: boolean }
+    | { type: 'done'; usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number; elapsed_seconds: number } | null };
+
 export async function* streamChat(
     messages: Message[],
     model: string,
     persona: string | null,
     effort: string | null,
-): AsyncGenerator<string, void> {
+): AsyncGenerator<ChatEvent, void> {
     const res = await fetch(`${BASE}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -124,8 +130,13 @@ export async function* streamChat(
         for (const line of lines) {
             if (line.startsWith('data: ')) {
                 const payload = JSON.parse(line.slice(6));
-                if (payload.done) return;
-                if (payload.token) yield payload.token;
+                if (payload.type === 'done') {
+                    yield payload as ChatEvent;
+                    return;
+                }
+                if (payload.type) {
+                    yield payload as ChatEvent;
+                }
             }
         }
     }

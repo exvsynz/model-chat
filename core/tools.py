@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Awaitable, Callable
 
+import httpx
+
 
 @dataclass
 class Tool:
@@ -237,6 +239,54 @@ def create_default_registry(work_dir: Path) -> ToolRegistry:
         },
         execute=bash_tool,
         permission="prompt",
+    ))
+
+    async def web_search(args: dict) -> str:
+        api_key = os.environ.get("BRAVE_SEARCH_API_KEY")
+        if not api_key:
+            return "Error: BRAVE_SEARCH_API_KEY environment variable not set"
+        query = args["query"]
+        count = min(args.get("count", 5), 10)
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    "https://api.search.brave.com/res/v1/web/search",
+                    params={"q": query, "count": count},
+                    headers={"X-Subscription-Token": api_key, "Accept": "application/json"},
+                    timeout=15,
+                )
+                resp.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            return f"Error: Brave Search API returned {e.response.status_code}"
+        except httpx.RequestError as e:
+            return f"Error: search request failed — {e}"
+
+        data = resp.json()
+        results = data.get("web", {}).get("results", [])
+        if not results:
+            return "No results found"
+
+        lines = []
+        for i, r in enumerate(results, 1):
+            title = r.get("title", "")
+            url = r.get("url", "")
+            snippet = r.get("description", "")
+            lines.append(f"{i}. {title}\n   {url}\n   {snippet}")
+        return "\n\n".join(lines)
+
+    registry.register(Tool(
+        name="web_search",
+        description="Search the web using Brave Search. Use this when you need current or up-to-date information.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Search query"},
+                "count": {"type": "integer", "description": "Number of results (1-10, default 5)"},
+            },
+            "required": ["query"],
+        },
+        execute=web_search,
+        permission="auto",
     ))
 
     return registry

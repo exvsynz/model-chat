@@ -1,8 +1,12 @@
+import json
 import logging
 
 import pytest
+from unittest.mock import patch, AsyncMock
 from httpx import AsyncClient, ASGITransport
 from web.backend.server import create_app
+from core.agent import TextDelta, ToolCallStart, ToolResult, Finished
+from core.usage import UsageStats
 
 
 @pytest.fixture
@@ -118,3 +122,72 @@ async def test_delete_memory_not_found(app):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         resp = await client.delete("/api/memories/nonexistent")
     assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_chat_streams_agent_events(app):
+    """Chat endpoint streams typed SSE events from AgentLoop."""
+
+    async def mock_run(self):
+        yield TextDelta(content="Hello ")
+        yield TextDelta(content="world")
+        yield Finished(usage=UsageStats(
+            prompt_tokens=10, completion_tokens=5, total_tokens=15, elapsed_seconds=0.5
+        ))
+
+    with patch("web.backend.server.AgentLoop.run", mock_run):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            resp = await client.post("/api/chat", json={
+                "messages": [{"role": "user", "content": "hi"}],
+                "model": "test/model",
+            })
+
+    assert resp.status_code == 200
+    lines = [l for l in resp.text.split("\n") if l.startswith("data: ")]
+    payloads = [json.loads(l.removeprefix("data: ")) for l in lines]
+
+    text_events = [p for p in payloads if p.get("type") == "text"]
+    assert len(text_events) == 2
+    assert text_events[0]["content"] == "Hello "
+    assert text_events[1]["content"] == "world"
+
+    done_events = [p for p in payloads if p.get("type") == "done"]
+    assert len(done_events) == 1
+    assert done_events[0]["usage"]["total_tokens"] == 15
+
+
+@pytest.mark.asyncio
+async def test_chat_streams_tool_events(app):
+    """Chat endpoint streams tool_call and tool_result SSE events."""
+
+    async def mock_run(self):
+        yield ToolCallStart(id="call_1", name="web_search", arguments={"query": "news"})
+        yield ToolResult(id="call_1", name="web_search", output="1. Breaking news\n   https://example.com", is_error=False)
+        yield TextDelta(content="Here's the latest news.")
+        yield Finished(usage=UsageStats(
+            prompt_tokens=30, completion_tokens=15, total_tokens=45, elapsed_seconds=1.2
+        ))
+
+    with patch("web.backend.server.AgentLoop.run", mock_run):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            resp = await client.post("/api/chat", json={
+                "messages": [{"role": "user", "content": "what's in the news?"}],
+                "model": "test/model",
+            })
+
+    assert resp.status_code == 200
+    lines = [l for l in resp.text.split("\n") if l.startswith("data: ")]
+    payloads = [json.loads(l.removeprefix("data: ")) for l in lines]
+
+    tool_calls = [p for p in payloads if p.get("type") == "tool_call"]
+    assert len(tool_calls) == 1
+    assert tool_calls[0]["name"] == "web_search"
+    assert tool_calls[0]["arguments"] == {"query": "news"}
+
+    tool_results = [p for p in payloads if p.get("type") == "tool_result"]
+    assert len(tool_results) == 1
+    assert "Breaking news" in tool_results[0]["output"]
+    assert tool_results[0]["is_error"] is False
+
+    text_events = [p for p in payloads if p.get("type") == "text"]
+    assert text_events[0]["content"] == "Here's the latest news."

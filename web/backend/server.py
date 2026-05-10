@@ -10,11 +10,12 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
-from core.client import chat_stream
+from core.agent import AgentLoop, TextDelta, ToolCallStart, ToolResult, Finished
 from core.memory import MemoryStore, extract_memories
 from core.models import ModelRegistry, fetch_all_models
 from core.personas import PersonaStore
 from core.store import ConversationStore
+from core.tools import create_default_registry
 
 
 logger = logging.getLogger("model-chat")
@@ -61,6 +62,7 @@ def create_app() -> FastAPI:
     personas = PersonaStore.from_bundled()
     store = ConversationStore(DATA_DIR / "conversations")
     memory = MemoryStore(DATA_DIR / "memory")
+    registry = create_default_registry(work_dir=Path.cwd())
 
     @app.get("/api/models")
     def get_models():
@@ -109,15 +111,48 @@ def create_app() -> FastAPI:
         if memory_section:
             system_prompt = (system_prompt or "") + "\n\n" + memory_section
 
+        async def permission_fn(name: str, arguments: dict) -> bool:
+            return not registry.needs_permission(name)
+
+        messages = list(req.messages)
+
         async def event_generator():
-            async for token in chat_stream(
-                messages=req.messages,
+            loop = AgentLoop(
                 model=req.model,
+                messages=messages,
                 system_prompt=system_prompt,
+                tools=registry,
+                permission_fn=permission_fn,
                 effort=req.effort,
-            ):
-                yield {"data": json.dumps({"token": token})}
-            yield {"data": json.dumps({"done": True})}
+            )
+            async for event in loop.run():
+                if isinstance(event, TextDelta):
+                    yield {"data": json.dumps({"type": "text", "content": event.content})}
+                elif isinstance(event, ToolCallStart):
+                    yield {"data": json.dumps({
+                        "type": "tool_call",
+                        "id": event.id,
+                        "name": event.name,
+                        "arguments": event.arguments,
+                    })}
+                elif isinstance(event, ToolResult):
+                    yield {"data": json.dumps({
+                        "type": "tool_result",
+                        "id": event.id,
+                        "name": event.name,
+                        "output": event.output[:2000],
+                        "is_error": event.is_error,
+                    })}
+                elif isinstance(event, Finished):
+                    usage = None
+                    if event.usage and event.usage.total_tokens > 0:
+                        usage = {
+                            "prompt_tokens": event.usage.prompt_tokens,
+                            "completion_tokens": event.usage.completion_tokens,
+                            "total_tokens": event.usage.total_tokens,
+                            "elapsed_seconds": event.usage.elapsed_seconds,
+                        }
+                    yield {"data": json.dumps({"type": "done", "usage": usage})}
 
         return EventSourceResponse(event_generator())
 
