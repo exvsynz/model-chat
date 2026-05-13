@@ -113,7 +113,7 @@ async def test_agent_loop_permission_denied():
         nonlocal call_count
         call_count += 1
         if call_count == 1:
-            yield ToolCallDelta(index=0, id="call_1", name="bash", arguments_chunk='{"command": "rm -rf /"}')
+            yield ToolCallDelta(index=0, id="call_1", name="shell", arguments_chunk='{"command": "rm -rf /"}')
             yield StreamEnd(
                 usage=UsageStats(prompt_tokens=10, completion_tokens=5, total_tokens=15, elapsed_seconds=0.5),
                 finish_reason="tool_calls",

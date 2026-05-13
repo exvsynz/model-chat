@@ -63,11 +63,11 @@ def test_print_tool_result_truncated(capsys):
     assert "lines total" in captured.out
 
 
-def test_print_tool_result_bash_not_truncated(capsys):
-    """print_tool_result does not truncate bash output."""
+def test_print_tool_result_shell_not_truncated(capsys):
+    """print_tool_result does not truncate shell output."""
     from cli.render import print_tool_result
     long_output = "\n".join(f"output line {i}" for i in range(1, 51))
-    print_tool_result("bash", long_output, is_error=False)
+    print_tool_result("shell", long_output, is_error=False)
     captured = capsys.readouterr()
     assert "output line 50" in captured.out
 
@@ -75,6 +75,6 @@ def test_print_tool_result_bash_not_truncated(capsys):
 def test_print_tool_result_error(capsys):
     """print_tool_result shows errors in red."""
     from cli.render import print_tool_result
-    print_tool_result("bash", "Error: command not found", is_error=True)
+    print_tool_result("shell", "Error: command not found", is_error=True)
     captured = capsys.readouterr()
     assert "Error" in captured.out

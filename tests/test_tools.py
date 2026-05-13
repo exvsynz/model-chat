@@ -151,23 +151,112 @@ async def test_write_file_blocks_path_escape(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_bash_runs_command(tmp_path):
-    """bash tool runs a command and returns output."""
+async def test_edit_file_replaces_string(tmp_path):
+    """edit_file replaces an exact unique match."""
+    from core.tools import create_default_registry
+
+    test_file = tmp_path / "code.py"
+    test_file.write_text("def hello():\n    return 'world'\n")
+
+    registry = create_default_registry(work_dir=tmp_path)
+    result = await registry.execute("edit_file", {
+        "path": "code.py",
+        "old_string": "return 'world'",
+        "new_string": "return 'universe'",
+    })
+
+    assert "replaced" in result.lower()
+    assert "return 'universe'" in test_file.read_text()
+    assert "return 'world'" not in test_file.read_text()
+
+
+@pytest.mark.asyncio
+async def test_edit_file_not_found(tmp_path):
+    """edit_file returns error when old_string is not in file."""
+    from core.tools import create_default_registry
+
+    test_file = tmp_path / "code.py"
+    test_file.write_text("def hello():\n    pass\n")
+
+    registry = create_default_registry(work_dir=tmp_path)
+    result = await registry.execute("edit_file", {
+        "path": "code.py",
+        "old_string": "nonexistent string",
+        "new_string": "replacement",
+    })
+
+    assert "not found" in result.lower()
+
+
+@pytest.mark.asyncio
+async def test_edit_file_ambiguous_match(tmp_path):
+    """edit_file rejects when old_string matches multiple locations."""
+    from core.tools import create_default_registry
+
+    test_file = tmp_path / "code.py"
+    test_file.write_text("pass\npass\npass\n")
+
+    registry = create_default_registry(work_dir=tmp_path)
+    result = await registry.execute("edit_file", {
+        "path": "code.py",
+        "old_string": "pass",
+        "new_string": "return",
+    })
+
+    assert "3 locations" in result
+    assert test_file.read_text() == "pass\npass\npass\n"
+
+
+@pytest.mark.asyncio
+async def test_edit_file_blocks_path_escape(tmp_path):
+    """edit_file refuses to edit outside work_dir."""
     from core.tools import create_default_registry
 
     registry = create_default_registry(work_dir=tmp_path)
-    result = await registry.execute("bash", {"command": "echo hello world"})
+    result = await registry.execute("edit_file", {
+        "path": "../../etc/passwd",
+        "old_string": "root",
+        "new_string": "hacked",
+    })
+
+    assert "denied" in result.lower() or "outside" in result.lower()
+
+
+@pytest.mark.asyncio
+async def test_edit_file_missing_file(tmp_path):
+    """edit_file returns error for nonexistent file."""
+    from core.tools import create_default_registry
+
+    registry = create_default_registry(work_dir=tmp_path)
+    result = await registry.execute("edit_file", {
+        "path": "nope.py",
+        "old_string": "x",
+        "new_string": "y",
+    })
+
+    assert "not found" in result.lower()
+
+
+@pytest.mark.asyncio
+async def test_shell_runs_command(tmp_path):
+    """shell tool runs a command and returns output."""
+    import sys
+    from core.tools import create_default_registry
+
+    registry = create_default_registry(work_dir=tmp_path)
+    cmd = 'Write-Output "hello world"' if sys.platform == "win32" else "echo hello world"
+    result = await registry.execute("shell", {"command": cmd})
 
     assert "hello world" in result
 
 
 @pytest.mark.asyncio
-async def test_bash_returns_exit_code_on_failure(tmp_path):
-    """bash tool includes exit code on non-zero exit."""
+async def test_shell_returns_exit_code_on_failure(tmp_path):
+    """shell tool includes exit code on non-zero exit."""
     from core.tools import create_default_registry
 
     registry = create_default_registry(work_dir=tmp_path)
-    result = await registry.execute("bash", {"command": "exit 1"})
+    result = await registry.execute("shell", {"command": "exit 1"})
 
     assert "exit code" in result.lower() or "1" in result
 
@@ -179,9 +268,9 @@ def test_registry_generates_openai_schemas():
     registry = create_default_registry(work_dir=Path("."))
     schemas = registry.get_tool_schemas()
 
-    assert len(schemas) == 6
+    assert len(schemas) == 7
     names = {s["function"]["name"] for s in schemas}
-    assert names == {"read_file", "write_file", "bash", "glob", "grep", "web_search"}
+    assert names == {"read_file", "write_file", "edit_file", "shell", "glob", "grep", "web_search"}
 
     for schema in schemas:
         assert schema["type"] == "function"

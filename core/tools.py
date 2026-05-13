@@ -3,6 +3,7 @@ import fnmatch
 import os
 import re
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Awaitable, Callable
@@ -206,11 +207,56 @@ def create_default_registry(work_dir: Path) -> ToolRegistry:
         permission="prompt",
     ))
 
-    async def bash_tool(args: dict) -> str:
-        command = args["command"]
+    async def edit_file(args: dict) -> str:
+        rel_path = Path(args["path"])
+        target = (work_dir / rel_path).resolve()
         try:
-            proc = await asyncio.create_subprocess_shell(
-                command,
+            target.relative_to(work_dir.resolve())
+        except ValueError:
+            return "Error: edit denied — path resolves outside working directory"
+        if not target.exists():
+            return f"Error: file not found: {args['path']}"
+        try:
+            content = target.read_text(encoding="utf-8")
+        except Exception as e:
+            return f"Error reading file: {e}"
+        old_string = args["old_string"]
+        new_string = args["new_string"]
+        count = content.count(old_string)
+        if count == 0:
+            return "Error: old_string not found in file"
+        if count > 1:
+            return f"Error: old_string matches {count} locations — provide more context to make it unique"
+        content = content.replace(old_string, new_string, 1)
+        target.write_text(content, encoding="utf-8")
+        return f"Edited {args['path']}: replaced 1 occurrence"
+
+    registry.register(Tool(
+        name="edit_file",
+        description="Edit a file by replacing an exact string match. The old_string must match exactly one location in the file.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "File path relative to working directory"},
+                "old_string": {"type": "string", "description": "Exact string to find and replace (must be unique in the file)"},
+                "new_string": {"type": "string", "description": "Replacement string"},
+            },
+            "required": ["path", "old_string", "new_string"],
+        },
+        execute=edit_file,
+        permission="prompt",
+    ))
+
+    async def shell_tool(args: dict) -> str:
+        command = args["command"]
+        if sys.platform == "win32":
+            shell_args = ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command]
+        else:
+            shell_bin = "/bin/bash" if os.path.exists("/bin/bash") else "/bin/sh"
+            shell_args = [shell_bin, "-c", command]
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *shell_args,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
                 cwd=work_dir,
@@ -227,9 +273,13 @@ def create_default_registry(work_dir: Path) -> ToolRegistry:
         except Exception as e:
             return f"Error running command: {e}"
 
+    shell_desc = (
+        "Run a shell command and return its output. "
+        "Uses PowerShell on Windows, bash on Linux/macOS."
+    )
     registry.register(Tool(
-        name="bash",
-        description="Run a shell command and return its output (stdout + stderr combined).",
+        name="shell",
+        description=shell_desc,
         parameters={
             "type": "object",
             "properties": {
@@ -237,7 +287,7 @@ def create_default_registry(work_dir: Path) -> ToolRegistry:
             },
             "required": ["command"],
         },
-        execute=bash_tool,
+        execute=shell_tool,
         permission="prompt",
     ))
 

@@ -45,8 +45,8 @@ def print_tool_result(name: str, output: str, is_error: bool) -> None:
 
     lines = output.splitlines()
 
-    # bash output is never truncated
-    if name == "bash":
+    # shell output is never truncated
+    if name == "shell":
         for line in lines:
             _console.print(f"  [dim]{line}[/dim]")
         return
