@@ -1,7 +1,9 @@
+import asyncio
 import json
 import logging
 import os
 from pathlib import Path
+from uuid import uuid4
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
@@ -45,6 +47,10 @@ class MemoryRequest(BaseModel):
     type: str = "fact"
 
 
+class PermissionResponse(BaseModel):
+    approved: bool
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title="model-chat")
 
@@ -63,6 +69,7 @@ def create_app() -> FastAPI:
     store = ConversationStore(DATA_DIR / "conversations")
     memory = MemoryStore(DATA_DIR / "memory")
     registry = create_default_registry(work_dir=Path.cwd())
+    pending_permissions: dict[str, asyncio.Future] = {}
 
     @app.get("/api/models")
     def get_models():
@@ -111,50 +118,94 @@ def create_app() -> FastAPI:
         if memory_section:
             system_prompt = (system_prompt or "") + "\n\n" + memory_section
 
-        async def permission_fn(name: str, arguments: dict) -> bool:
-            return not registry.needs_permission(name)
-
         messages = list(req.messages)
+        event_queue: asyncio.Queue = asyncio.Queue()
+
+        async def permission_fn(name: str, arguments: dict) -> bool:
+            if not registry.needs_permission(name):
+                return True
+            request_id = str(uuid4())
+            future = asyncio.get_event_loop().create_future()
+            pending_permissions[request_id] = future
+            await event_queue.put({
+                "type": "permission_request",
+                "request_id": request_id,
+                "tool_name": name,
+                "arguments": arguments,
+            })
+            try:
+                return await asyncio.wait_for(future, timeout=120)
+            except asyncio.TimeoutError:
+                pending_permissions.pop(request_id, None)
+                return False
+
+        async def run_agent():
+            try:
+                loop = AgentLoop(
+                    model=req.model,
+                    messages=messages,
+                    system_prompt=system_prompt,
+                    tools=registry,
+                    permission_fn=permission_fn,
+                    effort=req.effort,
+                )
+                async for event in loop.run():
+                    await event_queue.put(event)
+            except Exception as e:
+                logger.exception("Agent loop error")
+                await event_queue.put({"type": "error", "message": str(e)})
+            finally:
+                await event_queue.put(None)
 
         async def event_generator():
-            loop = AgentLoop(
-                model=req.model,
-                messages=messages,
-                system_prompt=system_prompt,
-                tools=registry,
-                permission_fn=permission_fn,
-                effort=req.effort,
-            )
-            async for event in loop.run():
-                if isinstance(event, TextDelta):
-                    yield {"data": json.dumps({"type": "text", "content": event.content})}
-                elif isinstance(event, ToolCallStart):
-                    yield {"data": json.dumps({
-                        "type": "tool_call",
-                        "id": event.id,
-                        "name": event.name,
-                        "arguments": event.arguments,
-                    })}
-                elif isinstance(event, ToolResult):
-                    yield {"data": json.dumps({
-                        "type": "tool_result",
-                        "id": event.id,
-                        "name": event.name,
-                        "output": event.output[:2000],
-                        "is_error": event.is_error,
-                    })}
-                elif isinstance(event, Finished):
-                    usage = None
-                    if event.usage and event.usage.total_tokens > 0:
-                        usage = {
-                            "prompt_tokens": event.usage.prompt_tokens,
-                            "completion_tokens": event.usage.completion_tokens,
-                            "total_tokens": event.usage.total_tokens,
-                            "elapsed_seconds": event.usage.elapsed_seconds,
-                        }
-                    yield {"data": json.dumps({"type": "done", "usage": usage})}
+            task = asyncio.create_task(run_agent())
+            try:
+                while True:
+                    event = await event_queue.get()
+                    if event is None:
+                        break
+                    if isinstance(event, dict):
+                        yield {"data": json.dumps(event)}
+                    elif isinstance(event, TextDelta):
+                        yield {"data": json.dumps({"type": "text", "content": event.content})}
+                    elif isinstance(event, ToolCallStart):
+                        yield {"data": json.dumps({
+                            "type": "tool_call",
+                            "id": event.id,
+                            "name": event.name,
+                            "arguments": event.arguments,
+                        })}
+                    elif isinstance(event, ToolResult):
+                        yield {"data": json.dumps({
+                            "type": "tool_result",
+                            "id": event.id,
+                            "name": event.name,
+                            "output": event.output[:2000],
+                            "is_error": event.is_error,
+                        })}
+                    elif isinstance(event, Finished):
+                        usage = None
+                        if event.usage and event.usage.total_tokens > 0:
+                            usage = {
+                                "prompt_tokens": event.usage.prompt_tokens,
+                                "completion_tokens": event.usage.completion_tokens,
+                                "total_tokens": event.usage.total_tokens,
+                                "elapsed_seconds": event.usage.elapsed_seconds,
+                            }
+                        yield {"data": json.dumps({"type": "done", "usage": usage})}
+            finally:
+                if not task.done():
+                    task.cancel()
 
         return EventSourceResponse(event_generator())
+
+    @app.post("/api/chat/permission/{request_id}")
+    async def handle_permission(request_id: str, body: PermissionResponse):
+        future = pending_permissions.pop(request_id, None)
+        if not future or future.done():
+            raise HTTPException(status_code=404, detail="No pending permission request")
+        future.set_result(body.approved)
+        return {"status": "ok"}
 
     @app.post("/api/conversations/save")
     async def save_conversation(req: SaveRequest):

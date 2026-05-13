@@ -2,19 +2,26 @@
     import { marked } from 'marked';
     import hljs from 'highlight.js';
     import 'highlight.js/styles/github-dark.css';
-    import type { Message } from './api';
+    import ToolCallBlockView from './ToolCallBlock.svelte';
+    import PermissionPrompt from './PermissionPrompt.svelte';
+    import type { Message, ContentBlock } from './api';
 
     let {
         messages = [],
         streamingContent = '',
+        streamingBlocks = [],
+        pendingPermission = null,
+        onPermissionRespond = (_: boolean) => {},
     }: {
         messages?: Message[];
         streamingContent?: string;
+        streamingBlocks?: ContentBlock[];
+        pendingPermission?: { requestId: string; toolName: string; args: Record<string, unknown> } | null;
+        onPermissionRespond?: (approved: boolean) => void;
     } = $props();
 
     let chatContainer: HTMLDivElement | undefined = $state();
 
-    // Use a custom renderer to apply highlight.js to fenced code blocks
     const renderer = new marked.Renderer();
     renderer.code = ({ text, lang }: { text: string; lang?: string }) => {
         const language = lang && hljs.getLanguage(lang) ? lang : null;
@@ -28,10 +35,17 @@
         return marked.parse(text, { renderer }) as string;
     }
 
+    function formatUsage(usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number; elapsed_seconds: number }): string {
+        const tokens = usage.total_tokens.toLocaleString();
+        const elapsed = usage.elapsed_seconds.toFixed(1);
+        return `${tokens} tokens · ${elapsed}s`;
+    }
+
     $effect(() => {
-        // Re-run whenever messages or streamingContent changes so the view scrolls to bottom
         void messages.length;
         void streamingContent;
+        void streamingBlocks.length;
+        void pendingPermission;
         if (chatContainer) {
             chatContainer.scrollTop = chatContainer.scrollHeight;
         }
@@ -48,22 +62,59 @@
                     </div>
                 </div>
             {:else if msg.role === 'assistant'}
-                <div class="prose dark:prose-invert prose-sm max-w-none">
-                    {@html renderMarkdown(msg.content)}
-                </div>
+                {#if msg.blocks && msg.blocks.length > 0}
+                    {#each msg.blocks as block}
+                        {#if block.type === 'text'}
+                            <div class="prose dark:prose-invert prose-sm max-w-none">
+                                {@html renderMarkdown(block.content)}
+                            </div>
+                        {:else if block.type === 'tool_call'}
+                            <ToolCallBlockView block={block.block} />
+                        {/if}
+                    {/each}
+                {:else}
+                    <div class="prose dark:prose-invert prose-sm max-w-none">
+                        {@html renderMarkdown(msg.content)}
+                    </div>
+                {/if}
+                {#if msg.usage}
+                    <p class="text-xs text-zinc-400 dark:text-zinc-500 mt-1">{formatUsage(msg.usage)}</p>
+                {/if}
             {/if}
         </div>
     {/each}
 
-    {#if streamingContent}
+    {#if streamingBlocks.length > 0}
         <div class="max-w-3xl mx-auto">
-            <div class="prose prose-invert prose-sm max-w-none">
+            {#each streamingBlocks as block}
+                {#if block.type === 'text'}
+                    <div class="prose dark:prose-invert prose-sm max-w-none">
+                        {@html renderMarkdown(block.content)}
+                    </div>
+                {:else if block.type === 'tool_call'}
+                    <ToolCallBlockView block={block.block} />
+                {/if}
+            {/each}
+        </div>
+    {:else if streamingContent}
+        <div class="max-w-3xl mx-auto">
+            <div class="prose dark:prose-invert prose-sm max-w-none">
                 {@html renderMarkdown(streamingContent)}
             </div>
         </div>
     {/if}
 
-    {#if messages.length === 0 && !streamingContent}
+    {#if pendingPermission}
+        <div class="max-w-3xl mx-auto">
+            <PermissionPrompt
+                toolName={pendingPermission.toolName}
+                args={pendingPermission.args}
+                onRespond={onPermissionRespond}
+            />
+        </div>
+    {/if}
+
+    {#if messages.length === 0 && !streamingContent && streamingBlocks.length === 0}
         <div class="flex items-center justify-center h-full text-zinc-500">
             <p>Start a conversation</p>
         </div>

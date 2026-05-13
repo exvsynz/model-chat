@@ -15,9 +15,31 @@ export interface ConversationSummary {
     message_count: number;
 }
 
+export interface ToolCallBlock {
+    id: string;
+    name: string;
+    arguments: Record<string, unknown>;
+    status: 'running' | 'success' | 'error';
+    output?: string;
+    is_error?: boolean;
+}
+
+export type ContentBlock =
+    | { type: 'text'; content: string }
+    | { type: 'tool_call'; block: ToolCallBlock };
+
+export interface UsageStats {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+    elapsed_seconds: number;
+}
+
 export interface Message {
     role: 'user' | 'assistant' | 'system';
     content: string;
+    blocks?: ContentBlock[];
+    usage?: UsageStats | null;
 }
 
 export interface OpenRouterModel {
@@ -97,7 +119,16 @@ export type ChatEvent =
     | { type: 'text'; content: string }
     | { type: 'tool_call'; id: string; name: string; arguments: Record<string, unknown> }
     | { type: 'tool_result'; id: string; name: string; output: string; is_error: boolean }
+    | { type: 'permission_request'; request_id: string; tool_name: string; arguments: Record<string, unknown> }
     | { type: 'done'; usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number; elapsed_seconds: number } | null };
+
+export async function respondToPermission(requestId: string, approved: boolean): Promise<void> {
+    await fetch(`${BASE}/api/chat/permission/${requestId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ approved }),
+    });
+}
 
 export async function* streamChat(
     messages: Message[],

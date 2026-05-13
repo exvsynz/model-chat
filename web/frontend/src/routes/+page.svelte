@@ -13,12 +13,15 @@
         saveConversation,
         deleteConversation,
         streamChat,
+        respondToPermission,
         type ChatEvent,
         type ModelsResponse,
         type Message,
         type ConversationSummary,
         type OpenRouterModel,
         type Memory,
+        type ContentBlock,
+        type UsageStats,
     } from '$lib/api';
 
     let models: ModelsResponse = $state({ aliases: {}, default: '' });
@@ -31,6 +34,9 @@
     let currentPersona: string | null = $state(null);
     let currentEffort: string | null = $state(null);
     let streamingContent = $state('');
+    let streamingBlocks: ContentBlock[] = $state([]);
+    let lastUsage: UsageStats | null = $state(null);
+    let pendingPermission: { requestId: string; toolName: string; args: Record<string, unknown> } | null = $state(null);
     let inputText = $state('');
     let isStreaming = $state(false);
     let inputEl: HTMLTextAreaElement | undefined = $state();
@@ -52,6 +58,14 @@
         });
     });
 
+    function appendTextToBlocks(blocks: ContentBlock[], text: string): ContentBlock[] {
+        const last = blocks[blocks.length - 1];
+        if (last && last.type === 'text') {
+            return [...blocks.slice(0, -1), { type: 'text', content: last.content + text }];
+        }
+        return [...blocks, { type: 'text', content: text }];
+    }
+
     async function sendMessage() {
         const text = inputText.trim();
         if (!text || isStreaming) return;
@@ -60,15 +74,49 @@
         messages = [...messages, { role: 'user', content: text }];
         isStreaming = true;
         streamingContent = '';
+        streamingBlocks = [];
+        lastUsage = null;
 
         try {
             for await (const event of streamChat(messages, currentModel, currentPersona, currentEffort)) {
                 if (event.type === 'text') {
                     streamingContent += event.content;
+                    streamingBlocks = appendTextToBlocks(streamingBlocks, event.content);
+                } else if (event.type === 'tool_call') {
+                    streamingBlocks = [...streamingBlocks, {
+                        type: 'tool_call',
+                        block: {
+                            id: event.id,
+                            name: event.name,
+                            arguments: event.arguments,
+                            status: 'running',
+                        },
+                    }];
+                } else if (event.type === 'tool_result') {
+                    streamingBlocks = streamingBlocks.map(b =>
+                        b.type === 'tool_call' && b.block.id === event.id
+                            ? { ...b, block: { ...b.block, status: event.is_error ? 'error' as const : 'success' as const, output: event.output, is_error: event.is_error } }
+                            : b
+                    );
+                } else if (event.type === 'permission_request') {
+                    pendingPermission = {
+                        requestId: event.request_id,
+                        toolName: event.tool_name,
+                        args: event.arguments,
+                    };
+                } else if (event.type === 'done') {
+                    lastUsage = event.usage;
                 }
             }
-            messages = [...messages, { role: 'assistant', content: streamingContent }];
+            const hasToolCalls = streamingBlocks.some(b => b.type === 'tool_call');
+            messages = [...messages, {
+                role: 'assistant',
+                content: streamingContent,
+                ...(hasToolCalls ? { blocks: streamingBlocks } : {}),
+                ...(lastUsage ? { usage: lastUsage } : {}),
+            }];
             streamingContent = '';
+            streamingBlocks = [];
 
             const firstUserMsg = messages.find(m => m.role === 'user');
             const title = firstUserMsg
@@ -91,6 +139,7 @@
             memories = await fetchMemories();
         } catch (e: any) {
             streamingContent = '';
+            streamingBlocks = [];
             messages = [...messages, { role: 'assistant', content: `Error: ${e.message}` }];
         } finally {
             isStreaming = false;
@@ -114,9 +163,19 @@
         memories = await fetchMemories();
     }
 
+    async function handlePermission(approved: boolean) {
+        if (!pendingPermission) return;
+        const { requestId } = pendingPermission;
+        pendingPermission = null;
+        await respondToPermission(requestId, approved);
+    }
+
     function handleNew() {
         messages = [];
         streamingContent = '';
+        streamingBlocks = [];
+        lastUsage = null;
+        pendingPermission = null;
     }
 
     function handleKeydown(e: KeyboardEvent) {
@@ -146,7 +205,7 @@
             onDeleteMemory={handleDeleteMemory}
         />
         <div class="flex flex-col flex-1">
-            <Chat {messages} {streamingContent} />
+            <Chat {messages} {streamingContent} {streamingBlocks} {pendingPermission} onPermissionRespond={handlePermission} />
             <div class="border-t border-zinc-300 dark:border-zinc-700 p-4">
                 <div class="max-w-3xl mx-auto flex gap-2">
                     <textarea
