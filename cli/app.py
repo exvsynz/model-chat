@@ -83,6 +83,7 @@ async def run_chat(handler: CommandHandler, user_input: str) -> None:
         return answer == "y"
 
     msg_snapshot = len(handler.messages)
+    abort_event = asyncio.Event()
 
     loop = AgentLoop(
         model=handler.current_model,
@@ -91,11 +92,20 @@ async def run_chat(handler: CommandHandler, user_input: str) -> None:
         tools=registry,
         permission_fn=ask_permission,
         effort=handler.effort,
+        abort_event=abort_event,
     )
 
     spinner = asyncio.create_task(_spinner_task(time.monotonic()))
     first_token = True
     full_response = ""
+
+    original_handler = None
+    import signal
+    def _abort_handler(sig, frame):
+        abort_event.set()
+    if hasattr(signal, "SIGINT"):
+        original_handler = signal.getsignal(signal.SIGINT)
+        signal.signal(signal.SIGINT, _abort_handler)
 
     try:
         async for event in loop.run():
@@ -138,6 +148,9 @@ async def run_chat(handler: CommandHandler, user_input: str) -> None:
         print_error(f"API error: {e}")
         del handler.messages[msg_snapshot:]
         return
+    finally:
+        if original_handler is not None:
+            signal.signal(signal.SIGINT, original_handler)
 
     handler.last_response = full_response
 

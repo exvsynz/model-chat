@@ -70,6 +70,7 @@ def create_app() -> FastAPI:
     memory = MemoryStore(DATA_DIR / "memory")
     registry = create_default_registry(work_dir=Path.cwd())
     pending_permissions: dict[str, asyncio.Future] = {}
+    active_abort_events: dict[str, asyncio.Event] = {}
 
     @app.get("/api/models")
     def get_models():
@@ -139,6 +140,10 @@ def create_app() -> FastAPI:
                 pending_permissions.pop(request_id, None)
                 return False
 
+        request_id = str(uuid4())
+        abort_event = asyncio.Event()
+        active_abort_events[request_id] = abort_event
+
         async def run_agent():
             try:
                 loop = AgentLoop(
@@ -148,6 +153,7 @@ def create_app() -> FastAPI:
                     tools=registry,
                     permission_fn=permission_fn,
                     effort=req.effort,
+                    abort_event=abort_event,
                 )
                 async for event in loop.run():
                     await event_queue.put(event)
@@ -155,10 +161,12 @@ def create_app() -> FastAPI:
                 logger.exception("Agent loop error")
                 await event_queue.put({"type": "error", "message": str(e)})
             finally:
+                active_abort_events.pop(request_id, None)
                 await event_queue.put(None)
 
         async def event_generator():
             task = asyncio.create_task(run_agent())
+            yield {"data": json.dumps({"type": "session", "request_id": request_id})}
             try:
                 while True:
                     event = await event_queue.get()
@@ -206,6 +214,14 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=404, detail="No pending permission request")
         future.set_result(body.approved)
         return {"status": "ok"}
+
+    @app.post("/api/chat/abort/{request_id}")
+    async def abort_chat(request_id: str):
+        event = active_abort_events.get(request_id)
+        if not event:
+            raise HTTPException(status_code=404, detail="No active session with that ID")
+        event.set()
+        return {"status": "aborted"}
 
     @app.post("/api/conversations/save")
     async def save_conversation(req: SaveRequest):
