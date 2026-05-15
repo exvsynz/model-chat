@@ -8,8 +8,12 @@
 
     const OUTPUT_LINE_LIMIT = 20;
 
+    let prevStatus = $derived(block.status);
+    let lastStatus = $state('');
     $effect(() => {
-        if (block.status === 'running') expanded = true;
+        if (prevStatus === 'running') expanded = true;
+        if (lastStatus === 'running' && prevStatus !== 'running') expanded = false;
+        lastStatus = prevStatus;
     });
 
     let outputLines = $derived(block.output?.split('\n') ?? []);
