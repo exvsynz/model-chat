@@ -80,11 +80,11 @@ def test_rebuild_index_reconciles(memory):
     assert len(result) == 2
 
 
-def test_add_duplicate_slug_appends_number(memory):
+def test_add_duplicate_content_returns_none(memory):
     f1 = memory.add("User is Josh", "user")
     f2 = memory.add("User is Josh", "user")
-    assert f1 != f2
-    assert "_2" in f2
+    assert f1 is not None
+    assert f2 is None
 
 
 def test_model_registry_memory_config():

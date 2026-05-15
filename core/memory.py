@@ -21,8 +21,10 @@ class MemoryStore:
     def _ensure_dir(self):
         self.memory_dir.mkdir(parents=True, exist_ok=True)
 
-    def add(self, content: str, memory_type: str = "fact") -> str:
+    def add(self, content: str, memory_type: str = "fact") -> str | None:
         self._ensure_dir()
+        if self._is_duplicate(content):
+            return None
         slug = self._generate_slug(content, memory_type)
         filename = f"{slug}.md"
         now = datetime.now(timezone.utc).isoformat()
@@ -79,7 +81,7 @@ class MemoryStore:
         for entry in self.list_all():
             existing_words = self._significant_words(entry["summary"])
             overlap = words & existing_words
-            if len(overlap) >= 3:
+            if len(overlap) >= 2:
                 return True
         return False
 
