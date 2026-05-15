@@ -4,33 +4,32 @@ import time
 from pathlib import Path
 
 from dotenv import load_dotenv
+
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.history import FileHistory
 
+from cli.commands import CommandHandler, parse_command
+from cli.completers import ChatCompleter
+from cli.render import (
+    print_error,
+    print_info,
+    print_streaming_end,
+    print_streaming_token,
+    print_tool_call,
+    print_tool_result,
+    print_usage,
+)
+from core.agent import AgentLoop, Finished, TextDelta, ToolCallStart, ToolResult
 from core.client import ChatError
-from core.agent import AgentLoop, TextDelta, ToolCallStart, ToolResult, Finished
-from core.tools import create_default_registry
+from core.memory import MemoryStore
 from core.models import ModelRegistry
 from core.personas import PersonaStore
 from core.store import ConversationStore
-from core.memory import MemoryStore
-from core.usage import UsageStats, format_usage
-from cli.commands import parse_command, CommandHandler
-from cli.completers import ChatCompleter
-from cli.render import (
-    print_markdown,
-    print_streaming_token,
-    print_streaming_end,
-    print_info,
-    print_error,
-    print_usage,
-    print_tool_call,
-    print_tool_result,
-)
-
+from core.tools import create_default_registry
+from core.usage import format_usage
 
 DATA_DIR = Path.home() / ".model-chat"
 BASE_PROMPT_PATH = Path(__file__).resolve().parents[1] / "config" / "base_prompt.txt"
@@ -42,6 +41,7 @@ def _load_base_prompt() -> str:
     if _base_prompt_cache is None:
         _base_prompt_cache = BASE_PROMPT_PATH.read_text(encoding="utf-8").strip()
     return _base_prompt_cache
+
 
 SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 
@@ -117,8 +117,10 @@ async def run_chat(handler: CommandHandler, user_input: str) -> None:
 
     original_handler = None
     import signal
+
     def _abort_handler(sig, frame):
         abort_event.set()
+
     if hasattr(signal, "SIGINT"):
         original_handler = signal.getsignal(signal.SIGINT)
         signal.signal(signal.SIGINT, _abort_handler)
@@ -174,11 +176,19 @@ async def run_chat(handler: CommandHandler, user_input: str) -> None:
 async def repl(handler: CommandHandler) -> None:
     session = get_prompt_session(handler)
 
-    model_short = handler.current_model.split("/")[-1] if "/" in handler.current_model else handler.current_model
-    print_info(f"model-chat v1.0 — type /help for commands\n")
+    model_short = (
+        handler.current_model.split("/")[-1]
+        if "/" in handler.current_model
+        else handler.current_model
+    )
+    print_info("model-chat v1.0 — type /help for commands\n")
 
     while True:
-        model_short = handler.current_model.split("/")[-1] if "/" in handler.current_model else handler.current_model
+        model_short = (
+            handler.current_model.split("/")[-1]
+            if "/" in handler.current_model
+            else handler.current_model
+        )
         try:
             if handler.multi_line:
                 user_input = await session.prompt_async(
@@ -186,7 +196,9 @@ async def repl(handler: CommandHandler) -> None:
                     multiline=True,
                 )
             else:
-                user_input = await session.prompt_async(HTML(f"<aaa fg='ansicyan'>[{model_short}]</aaa> &gt; "))
+                user_input = await session.prompt_async(
+                    HTML(f"<aaa fg='ansicyan'>[{model_short}]</aaa> &gt; ")
+                )
         except (EOFError, KeyboardInterrupt):
             print_info("\nGoodbye!")
             break
@@ -223,17 +235,24 @@ def main():
     parser = argparse.ArgumentParser(description="Chat with any LLM via OpenRouter")
     parser.add_argument("--model", default=None, help="Starting model (alias or full ID)")
     parser.add_argument("--persona", default="coder", help="Starting persona (default: coder)")
-    parser.add_argument("--effort", choices=["low", "medium", "high"], default=None, help="Reasoning effort")
+    parser.add_argument(
+        "--effort", choices=["low", "medium", "high"], default=None, help="Reasoning effort"
+    )
     parser.add_argument("--web", action="store_true", help="Launch web UI instead of CLI")
     parser.add_argument("--host", default="127.0.0.1", help="Web server host (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=8000, help="Web server port (default: 8000)")
-    parser.add_argument("--no-auto-memory", action="store_true", help="Disable auto memory extraction")
+    parser.add_argument(
+        "--no-auto-memory", action="store_true", help="Disable auto memory extraction"
+    )
     args = parser.parse_args()
 
     if args.web:
         import webbrowser
+
         import uvicorn
+
         from web.backend.server import create_app
+
         webbrowser.open(f"http://{args.host}:{args.port}")
         uvicorn.run(create_app(), host=args.host, port=args.port)
         return

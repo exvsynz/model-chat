@@ -1,0 +1,34 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.13
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.16.0
+    hooks:
+      - id: mypy
+        additional_dependencies: [types-PyYAML]
+        args: [--config-file=pyproject.toml]
+        pass_filenames: false
+        entry: mypy core/ cli/ web/backend/
+
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint
+        entry: powershell -Command "Set-Location web/frontend; npx eslint src/"
+        language: system
+        files: \.(svelte|ts|js)$
+        exclude: node_modules/
+        pass_filenames: false
+
+      - id: prettier
+        name: prettier
+        entry: powershell -Command "Set-Location web/frontend; npx prettier --check src/"
+        language: system
+        files: \.(svelte|ts|js|css|json)$
+        exclude: (node_modules/|package-lock\.json)
+        pass_filenames: false

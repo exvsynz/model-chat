@@ -18,7 +18,8 @@ class ConversationStore:
         path = self._dir / f"{convo_id}.json"
         if not path.exists():
             return None
-        return json.loads(path.read_text(encoding="utf-8"))
+        result: dict = json.loads(path.read_text(encoding="utf-8"))
+        return result
 
     def list_all(self) -> list[dict]:
         if not self._dir.exists():
@@ -26,15 +27,17 @@ class ConversationStore:
         summaries = []
         for path in sorted(self._dir.glob("*.json"), reverse=True):
             data = json.loads(path.read_text(encoding="utf-8"))
-            summaries.append({
-                "id": data["id"],
-                "model": data.get("model", ""),
-                "persona": data.get("persona", ""),
-                "title": data.get("title", ""),
-                "created_at": data.get("created_at", ""),
-                "updated_at": data.get("updated_at", ""),
-                "message_count": len(data.get("messages", [])),
-            })
+            summaries.append(
+                {
+                    "id": data["id"],
+                    "model": data.get("model", ""),
+                    "persona": data.get("persona", ""),
+                    "title": data.get("title", ""),
+                    "created_at": data.get("created_at", ""),
+                    "updated_at": data.get("updated_at", ""),
+                    "message_count": len(data.get("messages", [])),
+                }
+            )
         return summaries
 
     def delete(self, convo_id: str) -> None:

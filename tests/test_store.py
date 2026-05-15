@@ -1,5 +1,5 @@
-import json
 import pytest
+
 from core.store import ConversationStore
 
 
@@ -36,22 +36,32 @@ def test_list_all_empty(store):
 
 def test_list_all(store):
     for i in range(3):
-        store.save({
-            "id": f"convo-{i}",
-            "model": "openai/gpt-4o",
-            "persona": "general",
-            "created_at": f"2026-05-03T14:0{i}:00Z",
-            "updated_at": f"2026-05-03T14:0{i}:00Z",
-            "messages": [],
-        })
+        store.save(
+            {
+                "id": f"convo-{i}",
+                "model": "openai/gpt-4o",
+                "persona": "general",
+                "created_at": f"2026-05-03T14:0{i}:00Z",
+                "updated_at": f"2026-05-03T14:0{i}:00Z",
+                "messages": [],
+            }
+        )
     summaries = store.list_all()
     assert len(summaries) == 3
     assert all("id" in s for s in summaries)
 
 
 def test_delete(store):
-    store.save({"id": "to-delete", "model": "x", "persona": "general",
-                "created_at": "", "updated_at": "", "messages": []})
+    store.save(
+        {
+            "id": "to-delete",
+            "model": "x",
+            "persona": "general",
+            "created_at": "",
+            "updated_at": "",
+            "messages": [],
+        }
+    )
     assert store.load("to-delete") is not None
     store.delete("to-delete")
     assert store.load("to-delete") is None

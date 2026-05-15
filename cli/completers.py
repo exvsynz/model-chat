@@ -50,6 +50,7 @@ class ChatCompleter(Completer):
 
         elif cmd_name == "file":
             from pathlib import Path
+
             prefix = Path(arg_text) if arg_text else Path(".")
             parent = prefix.parent if arg_text and not arg_text.endswith("/") else prefix
             stem = prefix.name if arg_text and not arg_text.endswith("/") else ""

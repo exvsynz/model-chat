@@ -1,19 +1,24 @@
+import contextlib
 import sys
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 
 
 def test_main_parses_default_args():
     """main() with no args starts the REPL."""
-    with patch("cli.app.asyncio") as mock_asyncio, \
-         patch("cli.app.ModelRegistry") as mock_mr, \
-         patch("cli.app.PersonaStore") as mock_ps, \
-         patch("cli.app.ConversationStore"):
+    with (
+        patch("cli.app.asyncio") as mock_asyncio,
+        patch("cli.app.ModelRegistry") as mock_mr,
+        patch("cli.app.PersonaStore") as mock_ps,
+        patch("cli.app.ConversationStore"),
+    ):
         mock_mr.from_bundled.return_value = MagicMock(default="test/model")
         mock_ps.from_bundled.return_value = MagicMock()
 
         with patch.object(sys, "argv", ["mchat"]):
             from cli.app import main
+
             main()
 
         mock_asyncio.run.assert_called_once()
@@ -25,14 +30,20 @@ def test_main_web_launches_uvicorn():
     mock_webbrowser = MagicMock()
     mock_create_app = MagicMock(return_value=MagicMock())
 
-    with patch.dict(sys.modules, {
-        "uvicorn": mock_uvicorn,
-        "webbrowser": mock_webbrowser,
-        "web.backend.server": MagicMock(create_app=mock_create_app),
-    }):
-        with patch.object(sys, "argv", ["mchat", "--web"]):
-            from cli.app import main
-            main()
+    with (
+        patch.dict(
+            sys.modules,
+            {
+                "uvicorn": mock_uvicorn,
+                "webbrowser": mock_webbrowser,
+                "web.backend.server": MagicMock(create_app=mock_create_app),
+            },
+        ),
+        patch.object(sys, "argv", ["mchat", "--web"]),
+    ):
+        from cli.app import main
+
+        main()
 
     mock_uvicorn.run.assert_called_once()
     call_kwargs = mock_uvicorn.run.call_args
@@ -46,14 +57,20 @@ def test_main_web_custom_host_port():
     mock_webbrowser = MagicMock()
     mock_create_app = MagicMock(return_value=MagicMock())
 
-    with patch.dict(sys.modules, {
-        "uvicorn": mock_uvicorn,
-        "webbrowser": mock_webbrowser,
-        "web.backend.server": MagicMock(create_app=mock_create_app),
-    }):
-        with patch.object(sys, "argv", ["mchat", "--web", "--host", "0.0.0.0", "--port", "3000"]):
-            from cli.app import main
-            main()
+    with (
+        patch.dict(
+            sys.modules,
+            {
+                "uvicorn": mock_uvicorn,
+                "webbrowser": mock_webbrowser,
+                "web.backend.server": MagicMock(create_app=mock_create_app),
+            },
+        ),
+        patch.object(sys, "argv", ["mchat", "--web", "--host", "0.0.0.0", "--port", "3000"]),
+    ):
+        from cli.app import main
+
+        main()
 
     call_kwargs = mock_uvicorn.run.call_args
     assert call_kwargs.kwargs["host"] == "0.0.0.0"
@@ -62,11 +79,13 @@ def test_main_web_custom_host_port():
 
 def test_main_model_arg_resolves():
     """main() with --model resolves the alias via ModelRegistry."""
-    with patch("cli.app.asyncio") as mock_asyncio, \
-         patch("cli.app.ModelRegistry") as mock_mr, \
-         patch("cli.app.PersonaStore") as mock_ps, \
-         patch("cli.app.ConversationStore"), \
-         patch("cli.app.CommandHandler") as mock_ch:
+    with (
+        patch("cli.app.asyncio"),
+        patch("cli.app.ModelRegistry") as mock_mr,
+        patch("cli.app.PersonaStore") as mock_ps,
+        patch("cli.app.ConversationStore"),
+        patch("cli.app.CommandHandler") as mock_ch,
+    ):
         mock_registry = MagicMock(default="test/model")
         mock_registry.resolve.return_value = "deepseek/deepseek-r1"
         mock_mr.from_bundled.return_value = mock_registry
@@ -76,6 +95,7 @@ def test_main_model_arg_resolves():
 
         with patch.object(sys, "argv", ["mchat", "--model", "deepseek-r1"]):
             from cli.app import main
+
             main()
 
         mock_registry.resolve.assert_called_with("deepseek-r1")
@@ -87,6 +107,7 @@ async def test_spinner_task_outputs_frames():
     """_spinner_task prints spinner frames with elapsed time."""
     import asyncio
     import time
+
     from cli.app import _spinner_task
 
     output = []
@@ -94,10 +115,8 @@ async def test_spinner_task_outputs_frames():
         task = asyncio.create_task(_spinner_task(time.monotonic()))
         await asyncio.sleep(0.25)
         task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await task
-        except asyncio.CancelledError:
-            pass
 
     assert len(output) >= 2
     assert "Thinking..." in output[0]
@@ -109,16 +128,15 @@ async def test_spinner_task_cancels_cleanly():
     """_spinner_task does not raise when cancelled."""
     import asyncio
     import time
+
     from cli.app import _spinner_task
 
     with patch("builtins.print"):
         task = asyncio.create_task(_spinner_task(time.monotonic()))
         await asyncio.sleep(0.1)
         task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await task
-        except asyncio.CancelledError:
-            pass
 
     assert task.done() and not task.cancelled()
 
@@ -127,7 +145,7 @@ async def test_spinner_task_cancels_cleanly():
 async def test_run_chat_shows_and_clears_spinner():
     """run_chat starts spinner, clears it on first token."""
     import asyncio
-    import time
+
     from cli.app import run_chat
     from core.client import ContentDelta, StreamEnd
     from core.usage import UsageStats
@@ -146,7 +164,9 @@ async def test_run_chat_shows_and_clears_spinner():
         yield ContentDelta(text="Hello")
         yield ContentDelta(text=" world")
         yield StreamEnd(
-            usage=UsageStats(prompt_tokens=10, completion_tokens=5, total_tokens=15, elapsed_seconds=1.0),
+            usage=UsageStats(
+                prompt_tokens=10, completion_tokens=5, total_tokens=15, elapsed_seconds=1.0
+            ),
             finish_reason="stop",
         )
 
@@ -156,11 +176,13 @@ async def test_run_chat_shows_and_clears_spinner():
         if args:
             printed.append(str(args[0]))
 
-    with patch("core.agent.stream_completion", side_effect=fake_stream), \
-         patch("builtins.print", side_effect=capture_print), \
-         patch("cli.app.print_streaming_token", side_effect=lambda t: printed.append(f"TOKEN:{t}")), \
-         patch("cli.app.print_streaming_end"), \
-         patch("cli.app.print_usage"):
+    with (
+        patch("core.agent.stream_completion", side_effect=fake_stream),
+        patch("builtins.print", side_effect=capture_print),
+        patch("cli.app.print_streaming_token", side_effect=lambda t: printed.append(f"TOKEN:{t}")),
+        patch("cli.app.print_streaming_end"),
+        patch("cli.app.print_usage"),
+    ):
         await run_chat(handler, "hi")
 
     spinner_frames = [p for p in printed if "Thinking..." in p]

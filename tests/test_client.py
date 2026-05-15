@@ -1,7 +1,8 @@
-import pytest
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
-from core.client import chat_stream, ChatError
+
+import pytest
+
+from core.client import ChatError, chat_stream
 from core.usage import UsageStats
 
 
@@ -102,13 +103,14 @@ def test_missing_api_key():
     with patch.dict("os.environ", {}, clear=True):
         with pytest.raises(ChatError, match="OPENROUTER_API_KEY"):
             from core.client import get_async_openai_client
+
             get_async_openai_client()
 
 
 @pytest.mark.asyncio
 async def test_stream_completion_content_only():
     """stream_completion yields ContentDelta for text and StreamEnd at the end."""
-    from core.client import stream_completion, ContentDelta, StreamEnd
+    from core.client import ContentDelta, StreamEnd, stream_completion
 
     mock_chunk_1 = MagicMock()
     mock_chunk_1.choices = [MagicMock()]
@@ -161,7 +163,7 @@ async def test_stream_completion_content_only():
 @pytest.mark.asyncio
 async def test_stream_completion_tool_calls():
     """stream_completion yields ToolCallDelta for tool call chunks."""
-    from core.client import stream_completion, ToolCallDelta, StreamEnd
+    from core.client import StreamEnd, ToolCallDelta, stream_completion
 
     mock_tc_delta_1 = MagicMock()
     mock_tc_delta_1.index = 0

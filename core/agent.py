@@ -1,14 +1,13 @@
 import asyncio
 import json
 import logging
+import re
 import time
 from collections.abc import AsyncGenerator
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
-from core.client import ContentDelta, ToolCallDelta, StreamEnd, stream_completion
+from core.client import ContentDelta, StreamEnd, ToolCallDelta, stream_completion
 from core.usage import UsageStats
-
-import re
 
 logger = logging.getLogger("model-chat.agent")
 
@@ -76,7 +75,9 @@ class AgentLoop:
             raise _AbortedError()
 
     async def run(self) -> AsyncGenerator[TextDelta | ToolCallStart | ToolResult | Finished, None]:
-        total_usage = UsageStats(prompt_tokens=0, completion_tokens=0, total_tokens=0, elapsed_seconds=0.0)
+        total_usage = UsageStats(
+            prompt_tokens=0, completion_tokens=0, total_tokens=0, elapsed_seconds=0.0
+        )
         iteration = 0
         start_time = time.monotonic()
 
@@ -93,7 +94,9 @@ class AgentLoop:
 
             iteration += 1
             if iteration > self.max_iterations:
-                yield TextDelta(content=f"\n\n[Stopped: reached max iterations ({self.max_iterations})]")
+                yield TextDelta(
+                    content=f"\n\n[Stopped: reached max iterations ({self.max_iterations})]"
+                )
                 yield Finished(usage=total_usage, stop_reason="max_iterations")
                 return
 
@@ -154,10 +157,12 @@ class AgentLoop:
 
             self._check_abort()
 
-            logger.info("iteration %d: %d tool call(s) — %s",
-                        iteration,
-                        len(tool_call_accum),
-                        ", ".join(tool_call_accum[i]["name"] for i in sorted(tool_call_accum)))
+            logger.info(
+                "iteration %d: %d tool call(s) — %s",
+                iteration,
+                len(tool_call_accum),
+                ", ".join(tool_call_accum[i]["name"] for i in sorted(tool_call_accum)),
+            )
 
             # Phase 1: parse arguments and check permissions sequentially
             sorted_indices = sorted(tool_call_accum.keys())
@@ -183,9 +188,9 @@ class AgentLoop:
                         early_results[i] = ("Error: User denied this tool call", True)
 
             # Phase 2: execute approved tools concurrently (with one retry on transient errors)
-            async def _exec(i, tc, arguments):
-                if i in early_results:
-                    return early_results[i]
+            async def _exec(i, tc, arguments, _early=early_results):
+                if i in _early:
+                    return _early[i]
                 result_text = await self.tools.execute(tc["name"], arguments)
                 is_error = result_text.startswith("Error:")
                 if is_error and _TRANSIENT_PATTERN.search(result_text):
@@ -211,8 +216,12 @@ class AgentLoop:
                 else:
                     result_text, is_error = r
                 logger.info("  %s → %s", tc["name"], "error" if is_error else "ok")
-                yield ToolResult(id=tc["id"], name=tc["name"], output=result_text, is_error=is_error)
-                tool_results.append({"role": "tool", "tool_call_id": tc["id"], "content": result_text})
+                yield ToolResult(
+                    id=tc["id"], name=tc["name"], output=result_text, is_error=is_error
+                )
+                tool_results.append(
+                    {"role": "tool", "tool_call_id": tc["id"], "content": result_text}
+                )
 
             self.messages.extend(tool_results)
 

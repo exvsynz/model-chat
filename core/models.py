@@ -1,6 +1,7 @@
 import os
 import time
 from pathlib import Path
+
 import yaml
 from openai import OpenAI
 

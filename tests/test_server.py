@@ -1,12 +1,13 @@
 import json
 import logging
+from unittest.mock import patch
 
 import pytest
-from unittest.mock import patch, AsyncMock
-from httpx import AsyncClient, ASGITransport
-from web.backend.server import create_app
-from core.agent import TextDelta, ToolCallStart, ToolResult, Finished
+from httpx import ASGITransport, AsyncClient
+
+from core.agent import Finished, TextDelta, ToolCallStart, ToolResult
 from core.usage import UsageStats
+from web.backend.server import create_app
 
 
 @pytest.fixture
@@ -60,21 +61,23 @@ def test_server_logs_warning_when_no_api_key(app, caplog):
     """Server should log a warning on startup if OPENROUTER_API_KEY is not set."""
     import os
     from unittest.mock import patch
-    with patch.dict(os.environ, {}, clear=True):
-        with caplog.at_level(logging.WARNING):
-            from web.backend.server import create_app
-            test_app = create_app()
+
+    with patch.dict(os.environ, {}, clear=True), caplog.at_level(logging.WARNING):
+        from web.backend.server import create_app
+
+        create_app()
     assert any("OPENROUTER_API_KEY" in r.message for r in caplog.records)
 
 
 def test_server_logs_warning_when_no_static_build(app, caplog):
     """Server should log a warning if the frontend static build directory is missing."""
-    from unittest.mock import patch
     from pathlib import Path
-    with caplog.at_level(logging.WARNING):
-        with patch.object(Path, 'exists', return_value=False):
-            from web.backend.server import create_app
-            test_app = create_app()
+    from unittest.mock import patch
+
+    with caplog.at_level(logging.WARNING), patch.object(Path, "exists", return_value=False):
+        from web.backend.server import create_app
+
+        create_app()
     assert any("static" in r.message.lower() for r in caplog.records)
 
 
@@ -131,20 +134,25 @@ async def test_chat_streams_agent_events(app):
     async def mock_run(self):
         yield TextDelta(content="Hello ")
         yield TextDelta(content="world")
-        yield Finished(usage=UsageStats(
-            prompt_tokens=10, completion_tokens=5, total_tokens=15, elapsed_seconds=0.5
-        ))
+        yield Finished(
+            usage=UsageStats(
+                prompt_tokens=10, completion_tokens=5, total_tokens=15, elapsed_seconds=0.5
+            )
+        )
 
     with patch("web.backend.server.AgentLoop.run", mock_run):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            resp = await client.post("/api/chat", json={
-                "messages": [{"role": "user", "content": "hi"}],
-                "model": "test/model",
-            })
+            resp = await client.post(
+                "/api/chat",
+                json={
+                    "messages": [{"role": "user", "content": "hi"}],
+                    "model": "test/model",
+                },
+            )
 
     assert resp.status_code == 200
-    lines = [l for l in resp.text.split("\n") if l.startswith("data: ")]
-    payloads = [json.loads(l.removeprefix("data: ")) for l in lines]
+    lines = [line for line in resp.text.split("\n") if line.startswith("data: ")]
+    payloads = [json.loads(line.removeprefix("data: ")) for line in lines]
 
     text_events = [p for p in payloads if p.get("type") == "text"]
     assert len(text_events) == 2
@@ -162,22 +170,32 @@ async def test_chat_streams_tool_events(app):
 
     async def mock_run(self):
         yield ToolCallStart(id="call_1", name="web_search", arguments={"query": "news"})
-        yield ToolResult(id="call_1", name="web_search", output="1. Breaking news\n   https://example.com", is_error=False)
+        yield ToolResult(
+            id="call_1",
+            name="web_search",
+            output="1. Breaking news\n   https://example.com",
+            is_error=False,
+        )
         yield TextDelta(content="Here's the latest news.")
-        yield Finished(usage=UsageStats(
-            prompt_tokens=30, completion_tokens=15, total_tokens=45, elapsed_seconds=1.2
-        ))
+        yield Finished(
+            usage=UsageStats(
+                prompt_tokens=30, completion_tokens=15, total_tokens=45, elapsed_seconds=1.2
+            )
+        )
 
     with patch("web.backend.server.AgentLoop.run", mock_run):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            resp = await client.post("/api/chat", json={
-                "messages": [{"role": "user", "content": "what's in the news?"}],
-                "model": "test/model",
-            })
+            resp = await client.post(
+                "/api/chat",
+                json={
+                    "messages": [{"role": "user", "content": "what's in the news?"}],
+                    "model": "test/model",
+                },
+            )
 
     assert resp.status_code == 200
-    lines = [l for l in resp.text.split("\n") if l.startswith("data: ")]
-    payloads = [json.loads(l.removeprefix("data: ")) for l in lines]
+    lines = [line for line in resp.text.split("\n") if line.startswith("data: ")]
+    payloads = [json.loads(line.removeprefix("data: ")) for line in lines]
 
     tool_calls = [p for p in payloads if p.get("type") == "tool_call"]
     assert len(tool_calls) == 1

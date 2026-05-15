@@ -1,5 +1,13 @@
 from unittest.mock import patch
-from cli.render import print_markdown, print_streaming_token, print_streaming_end, print_info, print_error, print_success
+
+from cli.render import (
+    print_error,
+    print_info,
+    print_markdown,
+    print_streaming_end,
+    print_streaming_token,
+    print_success,
+)
 
 
 def test_print_info(capsys):
@@ -38,6 +46,7 @@ def test_print_markdown():
 def test_print_tool_call(capsys):
     """print_tool_call displays tool name and args."""
     from cli.render import print_tool_call
+
     print_tool_call("read_file", {"path": "src/main.py"})
     captured = capsys.readouterr()
     assert "read_file" in captured.out
@@ -47,6 +56,7 @@ def test_print_tool_call(capsys):
 def test_print_tool_result_short(capsys):
     """print_tool_result shows short results fully."""
     from cli.render import print_tool_result
+
     print_tool_result("read_file", "1\thello\n2\tworld", is_error=False)
     captured = capsys.readouterr()
     assert "hello" in captured.out
@@ -56,6 +66,7 @@ def test_print_tool_result_short(capsys):
 def test_print_tool_result_truncated(capsys):
     """print_tool_result truncates long results."""
     from cli.render import print_tool_result
+
     long_output = "\n".join(f"{i}\tline {i}" for i in range(1, 51))
     print_tool_result("read_file", long_output, is_error=False)
     captured = capsys.readouterr()
@@ -66,6 +77,7 @@ def test_print_tool_result_truncated(capsys):
 def test_print_tool_result_shell_not_truncated(capsys):
     """print_tool_result does not truncate shell output."""
     from cli.render import print_tool_result
+
     long_output = "\n".join(f"output line {i}" for i in range(1, 51))
     print_tool_result("shell", long_output, is_error=False)
     captured = capsys.readouterr()
@@ -75,6 +87,7 @@ def test_print_tool_result_shell_not_truncated(capsys):
 def test_print_tool_result_error(capsys):
     """print_tool_result shows errors in red."""
     from cli.render import print_tool_result
+
     print_tool_result("shell", "Error: command not found", is_error=True)
     captured = capsys.readouterr()
     assert "Error" in captured.out

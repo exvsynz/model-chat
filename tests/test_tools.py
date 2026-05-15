@@ -1,9 +1,8 @@
-import asyncio
-import json
 import os
-import pytest
 from pathlib import Path
-from unittest.mock import patch, AsyncMock
+from unittest.mock import AsyncMock, patch
+
+import pytest
 
 
 @pytest.mark.asyncio
@@ -91,7 +90,9 @@ async def test_grep_finds_matches(tmp_path):
     """grep tool finds regex matches in files."""
     from core.tools import create_default_registry
 
-    (tmp_path / "code.py").write_text("def hello():\n    return 'world'\n\ndef goodbye():\n    pass\n")
+    (tmp_path / "code.py").write_text(
+        "def hello():\n    return 'world'\n\ndef goodbye():\n    pass\n"
+    )
 
     registry = create_default_registry(work_dir=tmp_path)
     result = await registry.execute("grep", {"pattern": "def \\w+"})
@@ -159,11 +160,14 @@ async def test_edit_file_replaces_string(tmp_path):
     test_file.write_text("def hello():\n    return 'world'\n")
 
     registry = create_default_registry(work_dir=tmp_path)
-    result = await registry.execute("edit_file", {
-        "path": "code.py",
-        "old_string": "return 'world'",
-        "new_string": "return 'universe'",
-    })
+    result = await registry.execute(
+        "edit_file",
+        {
+            "path": "code.py",
+            "old_string": "return 'world'",
+            "new_string": "return 'universe'",
+        },
+    )
 
     assert "replaced" in result.lower()
     assert "return 'universe'" in test_file.read_text()
@@ -179,11 +183,14 @@ async def test_edit_file_not_found(tmp_path):
     test_file.write_text("def hello():\n    pass\n")
 
     registry = create_default_registry(work_dir=tmp_path)
-    result = await registry.execute("edit_file", {
-        "path": "code.py",
-        "old_string": "nonexistent string",
-        "new_string": "replacement",
-    })
+    result = await registry.execute(
+        "edit_file",
+        {
+            "path": "code.py",
+            "old_string": "nonexistent string",
+            "new_string": "replacement",
+        },
+    )
 
     assert "not found" in result.lower()
 
@@ -197,11 +204,14 @@ async def test_edit_file_ambiguous_match(tmp_path):
     test_file.write_text("pass\npass\npass\n")
 
     registry = create_default_registry(work_dir=tmp_path)
-    result = await registry.execute("edit_file", {
-        "path": "code.py",
-        "old_string": "pass",
-        "new_string": "return",
-    })
+    result = await registry.execute(
+        "edit_file",
+        {
+            "path": "code.py",
+            "old_string": "pass",
+            "new_string": "return",
+        },
+    )
 
     assert "3 locations" in result
     assert test_file.read_text() == "pass\npass\npass\n"
@@ -213,11 +223,14 @@ async def test_edit_file_blocks_path_escape(tmp_path):
     from core.tools import create_default_registry
 
     registry = create_default_registry(work_dir=tmp_path)
-    result = await registry.execute("edit_file", {
-        "path": "../../etc/passwd",
-        "old_string": "root",
-        "new_string": "hacked",
-    })
+    result = await registry.execute(
+        "edit_file",
+        {
+            "path": "../../etc/passwd",
+            "old_string": "root",
+            "new_string": "hacked",
+        },
+    )
 
     assert "denied" in result.lower() or "outside" in result.lower()
 
@@ -228,11 +241,14 @@ async def test_edit_file_missing_file(tmp_path):
     from core.tools import create_default_registry
 
     registry = create_default_registry(work_dir=tmp_path)
-    result = await registry.execute("edit_file", {
-        "path": "nope.py",
-        "old_string": "x",
-        "new_string": "y",
-    })
+    result = await registry.execute(
+        "edit_file",
+        {
+            "path": "nope.py",
+            "old_string": "x",
+            "new_string": "y",
+        },
+    )
 
     assert "not found" in result.lower()
 
@@ -241,6 +257,7 @@ async def test_edit_file_missing_file(tmp_path):
 async def test_shell_runs_command(tmp_path):
     """shell tool runs a command and returns output."""
     import sys
+
     from core.tools import create_default_registry
 
     registry = create_default_registry(work_dir=tmp_path)
@@ -297,8 +314,16 @@ async def test_web_search_returns_results():
     mock_response = {
         "web": {
             "results": [
-                {"title": "Result One", "url": "https://example.com/1", "description": "First result snippet"},
-                {"title": "Result Two", "url": "https://example.com/2", "description": "Second result snippet"},
+                {
+                    "title": "Result One",
+                    "url": "https://example.com/1",
+                    "description": "First result snippet",
+                },
+                {
+                    "title": "Result Two",
+                    "url": "https://example.com/2",
+                    "description": "Second result snippet",
+                },
             ]
         }
     }
@@ -352,8 +377,9 @@ async def test_web_search_no_results():
 @pytest.mark.asyncio
 async def test_web_search_http_error():
     """web_search handles HTTP errors from Brave API."""
-    from core.tools import create_default_registry
     import httpx
+
+    from core.tools import create_default_registry
 
     registry = create_default_registry(work_dir=Path("."))
 
@@ -379,8 +405,9 @@ async def test_web_search_http_error():
 @pytest.mark.asyncio
 async def test_web_search_network_error():
     """web_search handles network failures gracefully."""
-    from core.tools import create_default_registry
     import httpx
+
+    from core.tools import create_default_registry
 
     registry = create_default_registry(work_dir=Path("."))
 
@@ -406,7 +433,11 @@ async def test_web_search_respects_count_param():
     mock_response = {
         "web": {
             "results": [
-                {"title": f"Result {i}", "url": f"https://example.com/{i}", "description": f"Snippet {i}"}
+                {
+                    "title": f"Result {i}",
+                    "url": f"https://example.com/{i}",
+                    "description": f"Snippet {i}",
+                }
                 for i in range(3)
             ]
         }

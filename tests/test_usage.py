@@ -2,7 +2,9 @@ from core.usage import UsageStats, format_usage
 
 
 def test_usage_stats_format():
-    stats = UsageStats(prompt_tokens=100, completion_tokens=50, total_tokens=150, elapsed_seconds=2.5)
+    stats = UsageStats(
+        prompt_tokens=100, completion_tokens=50, total_tokens=150, elapsed_seconds=2.5
+    )
     text = format_usage(stats)
     assert "150 tokens" in text
     assert "2.5s" in text

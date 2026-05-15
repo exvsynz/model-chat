@@ -33,7 +33,7 @@ def print_usage(text: str) -> None:
 
 
 def print_tool_call(name: str, arguments: dict) -> None:
-    args_str = ", ".join(f"{k}={repr(v)}" for k, v in arguments.items())
+    args_str = ", ".join(f"{k}={v!r}" for k, v in arguments.items())
     _console.print(f"[dim]── {name}: {args_str} ──[/dim]")
 
 

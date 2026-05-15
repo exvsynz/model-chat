@@ -1,10 +1,12 @@
+from pathlib import Path
+
 import pytest
-from cli.commands import parse_command, CommandRegistry, CommandHandler
+
+from cli.commands import CommandHandler, CommandRegistry, parse_command
+from core.memory import MemoryStore
 from core.models import ModelRegistry
 from core.personas import PersonaStore
 from core.store import ConversationStore
-from core.memory import MemoryStore
-from pathlib import Path
 
 
 @pytest.fixture
@@ -84,7 +86,10 @@ def test_cmd_info_shows_current_state(handler, capsys):
     handler.current_model = "deepseek/deepseek-v4-flash"
     handler.persona_name = "coder"
     handler.effort = "high"
-    handler.messages = [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}]
+    handler.messages = [
+        {"role": "user", "content": "hi"},
+        {"role": "assistant", "content": "hello"},
+    ]
     handler.handle("info", "")
     output = capsys.readouterr().out
     assert "deepseek-v4-flash" in output
@@ -134,7 +139,8 @@ def test_cmd_edit_empty_history(handler, capsys):
 # Task 10 tests
 def test_cmd_copy_copies_last_response(handler, capsys):
     handler.last_response = "hi there"
-    from unittest.mock import patch, MagicMock
+    from unittest.mock import MagicMock, patch
+
     with patch("cli.commands.subprocess") as mock_sp:
         mock_sp.run = MagicMock()
         handler.handle("copy", "")

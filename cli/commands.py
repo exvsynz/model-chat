@@ -2,11 +2,12 @@ import asyncio
 import subprocess
 import sys
 from pathlib import Path
+
+from cli.render import print_error, print_info, print_success
+from core.memory import MemoryStore, extract_memories
 from core.models import ModelRegistry
 from core.personas import PersonaStore
 from core.store import ConversationStore
-from core.memory import MemoryStore, extract_memories
-from cli.render import print_info, print_error, print_success
 
 
 def parse_command(text: str) -> tuple[str | None, str]:
@@ -55,7 +56,7 @@ class CommandRegistry:
 
     def get_help(self) -> str:
         lines = []
-        for cmd, (usage, desc) in self._commands.items():
+        for _cmd, (usage, desc) in self._commands.items():
             lines.append(f"  {usage:<30} {desc}")
         return "\n".join(lines)
 
@@ -90,7 +91,8 @@ class CommandHandler:
         if handler is None:
             print_error(f"Unknown command: /{cmd}")
             return None
-        return handler(args)
+        result: str | None = handler(args)
+        return result
 
     def _cmd_model(self, args: str) -> str | None:
         if not args:
@@ -108,6 +110,7 @@ class CommandHandler:
 
     def _cmd_browse(self, args: str) -> str | None:
         from core.models import fetch_all_models
+
         try:
             all_models = fetch_all_models()
         except Exception as e:
@@ -115,12 +118,18 @@ class CommandHandler:
             return None
         if args:
             query = args.lower()
-            all_models = [m for m in all_models if query in m["id"].lower() or query in m["name"].lower()]
+            all_models = [
+                m for m in all_models if query in m["id"].lower() or query in m["name"].lower()
+            ]
         if not all_models:
             print_info("No models found")
             return None
         lines = [f"  {m['id']:<55} {m['name']}" for m in all_models[:50]]
-        suffix = f"\n  ... and {len(all_models) - 50} more (narrow your search)" if len(all_models) > 50 else ""
+        suffix = (
+            f"\n  ... and {len(all_models) - 50} more (narrow your search)"
+            if len(all_models) > 50
+            else ""
+        )
         print_info(f"Models ({len(all_models)} results):\n" + "\n".join(lines) + suffix)
         return None
 
@@ -142,10 +151,12 @@ class CommandHandler:
             return None
         content = path.read_text(encoding="utf-8", errors="replace")
         line_count = len(content.splitlines())
-        self.messages.append({
-            "role": "user",
-            "content": f"<file path=\"{path}\">\n{content}\n</file>",
-        })
+        self.messages.append(
+            {
+                "role": "user",
+                "content": f'<file path="{path}">\n{content}\n</file>',
+            }
+        )
         print_success(f"Added {path.name} to context ({line_count} lines)")
         return None
 
@@ -175,8 +186,11 @@ class CommandHandler:
 
     def _cmd_save(self, args: str) -> str | None:
         from datetime import datetime, timezone
+
         now = datetime.now(timezone.utc)
-        model_short = self.current_model.split("/")[-1] if "/" in self.current_model else self.current_model
+        model_short = (
+            self.current_model.split("/")[-1] if "/" in self.current_model else self.current_model
+        )
         convo_id = now.strftime(f"%Y-%m-%d_%H-%M-%S_{model_short}")
         convo = {
             "id": convo_id,
@@ -190,17 +204,21 @@ class CommandHandler:
         print_success(f"Saved as {convo_id}")
 
         # Auto-extraction (skip if at memory cap)
-        if (self.auto_memory and self.memory and len(self.messages) >= 4
-                and len(self.memory.list_all()) < self.max_memories):
+        if (
+            self.auto_memory
+            and self.memory
+            and len(self.messages) >= 4
+            and len(self.memory.list_all()) < self.max_memories
+        ):
             extraction_model = self.current_model
             try:
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
                     import concurrent.futures
+
                     with concurrent.futures.ThreadPoolExecutor() as pool:
                         memories = pool.submit(
-                            asyncio.run,
-                            extract_memories(self.messages, extraction_model)
+                            asyncio.run, extract_memories(self.messages, extraction_model)
                         ).result()
                 else:
                     memories = loop.run_until_complete(
@@ -215,7 +233,9 @@ class CommandHandler:
                     self.memory.add(mem["content"], mem.get("type", "fact"))
                     saved_count += 1
             if saved_count > 0:
-                print_info(f"Auto-saved {saved_count} {'memory' if saved_count == 1 else 'memories'}")
+                print_info(
+                    f"Auto-saved {saved_count} {'memory' if saved_count == 1 else 'memories'}"
+                )
 
         return None
 
@@ -302,7 +322,11 @@ class CommandHandler:
             elif sys.platform == "darwin":
                 subprocess.run(["pbcopy"], input=self.last_response.encode("utf-8"), check=True)
             else:
-                subprocess.run(["xclip", "-selection", "clipboard"], input=self.last_response.encode("utf-8"), check=True)
+                subprocess.run(
+                    ["xclip", "-selection", "clipboard"],
+                    input=self.last_response.encode("utf-8"),
+                    check=True,
+                )
             print_success("Copied to clipboard")
         except Exception as e:
             print_error(f"Failed to copy: {e}")
@@ -334,7 +358,9 @@ class CommandHandler:
             print_error("Memory not available")
             return None
         if len(self.memory.list_all()) >= self.max_memories:
-            print_error(f"Memory limit reached ({self.max_memories}). Use /forget to remove old memories.")
+            print_error(
+                f"Memory limit reached ({self.max_memories}). Use /forget to remove old memories."
+            )
             return None
         if self.memory._is_duplicate(args):
             entries = self.memory.list_all()
@@ -344,7 +370,7 @@ class CommandHandler:
                 if len(words & existing) >= 3:
                     print_info(f"Similar memory already exists: {entry['summary']}")
                     return None
-        filename = self.memory.add(args, "fact")
+        self.memory.add(args, "fact")
         print_success(f"Remembered: {args[:80]}")
         return None
 

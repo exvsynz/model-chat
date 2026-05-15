@@ -1,28 +1,34 @@
 import asyncio
-import json
 import os
-import pytest
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
-from core.agent import AgentLoop, TextDelta, ToolCallStart, ToolResult, Finished
-from core.client import ContentDelta, ToolCallDelta, StreamEnd
+
+import pytest
+
+from core.agent import AgentLoop, Finished, TextDelta, ToolCallStart, ToolResult
+from core.client import ContentDelta, StreamEnd, ToolCallDelta
 from core.usage import UsageStats
 
 
 @pytest.mark.asyncio
 async def test_agent_loop_text_only():
     """AgentLoop yields TextDelta and Finished for a plain text response."""
+
     async def mock_stream(*a, **kw):
         yield ContentDelta(text="Hello ")
         yield ContentDelta(text="world")
         yield StreamEnd(
-            usage=UsageStats(prompt_tokens=10, completion_tokens=5, total_tokens=15, elapsed_seconds=1.0),
+            usage=UsageStats(
+                prompt_tokens=10, completion_tokens=5, total_tokens=15, elapsed_seconds=1.0
+            ),
             finish_reason="stop",
         )
 
     with patch("core.agent.stream_completion", side_effect=mock_stream):
-        from core.tools import create_default_registry
         from pathlib import Path
+
+        from core.tools import create_default_registry
+
         registry = create_default_registry(work_dir=Path("."))
 
         loop = AgentLoop(
@@ -59,13 +65,17 @@ async def test_agent_loop_tool_call_then_text():
             yield ToolCallDelta(index=0, id="call_1", name="read_file", arguments_chunk='{"path":')
             yield ToolCallDelta(index=0, id=None, name=None, arguments_chunk=' "test.txt"}')
             yield StreamEnd(
-                usage=UsageStats(prompt_tokens=10, completion_tokens=5, total_tokens=15, elapsed_seconds=0.5),
+                usage=UsageStats(
+                    prompt_tokens=10, completion_tokens=5, total_tokens=15, elapsed_seconds=0.5
+                ),
                 finish_reason="tool_calls",
             )
         else:
             yield ContentDelta(text="File contains hello")
             yield StreamEnd(
-                usage=UsageStats(prompt_tokens=20, completion_tokens=10, total_tokens=30, elapsed_seconds=0.5),
+                usage=UsageStats(
+                    prompt_tokens=20, completion_tokens=10, total_tokens=30, elapsed_seconds=0.5
+                ),
                 finish_reason="stop",
             )
 
@@ -73,7 +83,9 @@ async def test_agent_loop_tool_call_then_text():
         return "hello"
 
     mock_registry = MagicMock()
-    mock_registry.get_tool_schemas.return_value = [{"type": "function", "function": {"name": "read_file", "parameters": {}}}]
+    mock_registry.get_tool_schemas.return_value = [
+        {"type": "function", "function": {"name": "read_file", "parameters": {}}}
+    ]
     mock_registry.needs_permission.return_value = False
     mock_registry.execute = AsyncMock(side_effect=mock_execute)
 
@@ -113,15 +125,21 @@ async def test_agent_loop_permission_denied():
         nonlocal call_count
         call_count += 1
         if call_count == 1:
-            yield ToolCallDelta(index=0, id="call_1", name="shell", arguments_chunk='{"command": "rm -rf /"}')
+            yield ToolCallDelta(
+                index=0, id="call_1", name="shell", arguments_chunk='{"command": "rm -rf /"}'
+            )
             yield StreamEnd(
-                usage=UsageStats(prompt_tokens=10, completion_tokens=5, total_tokens=15, elapsed_seconds=0.5),
+                usage=UsageStats(
+                    prompt_tokens=10, completion_tokens=5, total_tokens=15, elapsed_seconds=0.5
+                ),
                 finish_reason="tool_calls",
             )
         else:
             yield ContentDelta(text="Understood, I won't do that.")
             yield StreamEnd(
-                usage=UsageStats(prompt_tokens=20, completion_tokens=10, total_tokens=30, elapsed_seconds=0.5),
+                usage=UsageStats(
+                    prompt_tokens=20, completion_tokens=10, total_tokens=30, elapsed_seconds=0.5
+                ),
                 finish_reason="stop",
             )
 
@@ -161,24 +179,34 @@ async def test_agent_loop_web_search_integration():
         call_count += 1
         if call_count == 1:
             yield ToolCallDelta(
-                index=0, id="call_ws", name="web_search",
+                index=0,
+                id="call_ws",
+                name="web_search",
                 arguments_chunk='{"query": "latest news today"}',
             )
             yield StreamEnd(
-                usage=UsageStats(prompt_tokens=20, completion_tokens=10, total_tokens=30, elapsed_seconds=0.5),
+                usage=UsageStats(
+                    prompt_tokens=20, completion_tokens=10, total_tokens=30, elapsed_seconds=0.5
+                ),
                 finish_reason="tool_calls",
             )
         else:
             yield ContentDelta(text="Based on the search results, here is the latest news.")
             yield StreamEnd(
-                usage=UsageStats(prompt_tokens=50, completion_tokens=20, total_tokens=70, elapsed_seconds=1.0),
+                usage=UsageStats(
+                    prompt_tokens=50, completion_tokens=20, total_tokens=70, elapsed_seconds=1.0
+                ),
                 finish_reason="stop",
             )
 
     brave_response = {
         "web": {
             "results": [
-                {"title": "Breaking News", "url": "https://news.example.com", "description": "Something happened today"},
+                {
+                    "title": "Breaking News",
+                    "url": "https://news.example.com",
+                    "description": "Something happened today",
+                },
             ]
         }
     }
@@ -188,12 +216,14 @@ async def test_agent_loop_web_search_integration():
     mock_resp.raise_for_status = lambda: None
 
     from core.tools import create_default_registry
+
     registry = create_default_registry(work_dir=Path("."))
 
-    with patch("core.agent.stream_completion", side_effect=mock_stream), \
-         patch.dict(os.environ, {"BRAVE_SEARCH_API_KEY": "test-key"}), \
-         patch("core.tools.httpx.AsyncClient") as mock_client_cls:
-
+    with (
+        patch("core.agent.stream_completion", side_effect=mock_stream),
+        patch.dict(os.environ, {"BRAVE_SEARCH_API_KEY": "test-key"}),
+        patch("core.tools.httpx.AsyncClient") as mock_client_cls,
+    ):
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_resp
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -233,6 +263,7 @@ async def test_agent_loop_web_search_integration():
 async def test_agent_loop_web_search_auto_approved():
     """web_search has auto permission and doesn't require user approval."""
     from core.tools import create_default_registry
+
     registry = create_default_registry(work_dir=Path("."))
     assert not registry.needs_permission("web_search")
 
@@ -240,15 +271,19 @@ async def test_agent_loop_web_search_auto_approved():
 @pytest.mark.asyncio
 async def test_agent_loop_no_tool_support_fallback():
     """Models that don't call tools still produce a normal text response."""
+
     async def mock_stream(*a, **kw):
         yield ContentDelta(text="I don't have access to current information, but ")
         yield ContentDelta(text="here's what I know.")
         yield StreamEnd(
-            usage=UsageStats(prompt_tokens=15, completion_tokens=10, total_tokens=25, elapsed_seconds=0.8),
+            usage=UsageStats(
+                prompt_tokens=15, completion_tokens=10, total_tokens=25, elapsed_seconds=0.8
+            ),
             finish_reason="stop",
         )
 
     from core.tools import create_default_registry
+
     registry = create_default_registry(work_dir=Path("."))
 
     with patch("core.agent.stream_completion", side_effect=mock_stream):
@@ -277,10 +312,15 @@ async def test_agent_loop_no_tool_support_fallback():
 @pytest.mark.asyncio
 async def test_agent_loop_max_iterations():
     """AgentLoop stops after max_iterations and reports it."""
+
     async def mock_stream(*a, **kw):
-        yield ToolCallDelta(index=0, id="call_loop", name="read_file", arguments_chunk='{"path": "x.txt"}')
+        yield ToolCallDelta(
+            index=0, id="call_loop", name="read_file", arguments_chunk='{"path": "x.txt"}'
+        )
         yield StreamEnd(
-            usage=UsageStats(prompt_tokens=5, completion_tokens=3, total_tokens=8, elapsed_seconds=0.1),
+            usage=UsageStats(
+                prompt_tokens=5, completion_tokens=3, total_tokens=8, elapsed_seconds=0.1
+            ),
             finish_reason="tool_calls",
         )
 
@@ -322,9 +362,13 @@ async def test_agent_loop_timeout():
     async def mock_stream(*a, **kw):
         nonlocal call_count
         call_count += 1
-        yield ToolCallDelta(index=0, id=f"call_{call_count}", name="shell", arguments_chunk='{"command": "sleep 1"}')
+        yield ToolCallDelta(
+            index=0, id=f"call_{call_count}", name="shell", arguments_chunk='{"command": "sleep 1"}'
+        )
         yield StreamEnd(
-            usage=UsageStats(prompt_tokens=5, completion_tokens=3, total_tokens=8, elapsed_seconds=0.1),
+            usage=UsageStats(
+                prompt_tokens=5, completion_tokens=3, total_tokens=8, elapsed_seconds=0.1
+            ),
             finish_reason="tool_calls",
         )
 
@@ -366,9 +410,13 @@ async def test_agent_loop_abort():
     async def mock_stream(*a, **kw):
         nonlocal call_count
         call_count += 1
-        yield ToolCallDelta(index=0, id=f"call_{call_count}", name="read_file", arguments_chunk='{"path": "x.txt"}')
+        yield ToolCallDelta(
+            index=0, id=f"call_{call_count}", name="read_file", arguments_chunk='{"path": "x.txt"}'
+        )
         yield StreamEnd(
-            usage=UsageStats(prompt_tokens=5, completion_tokens=3, total_tokens=8, elapsed_seconds=0.1),
+            usage=UsageStats(
+                prompt_tokens=5, completion_tokens=3, total_tokens=8, elapsed_seconds=0.1
+            ),
             finish_reason="tool_calls",
         )
 
@@ -414,16 +462,24 @@ async def test_agent_loop_parallel_tool_execution():
         nonlocal call_count
         call_count += 1
         if call_count == 1:
-            yield ToolCallDelta(index=0, id="call_a", name="read_file", arguments_chunk='{"path": "a.txt"}')
-            yield ToolCallDelta(index=1, id="call_b", name="read_file", arguments_chunk='{"path": "b.txt"}')
+            yield ToolCallDelta(
+                index=0, id="call_a", name="read_file", arguments_chunk='{"path": "a.txt"}'
+            )
+            yield ToolCallDelta(
+                index=1, id="call_b", name="read_file", arguments_chunk='{"path": "b.txt"}'
+            )
             yield StreamEnd(
-                usage=UsageStats(prompt_tokens=10, completion_tokens=5, total_tokens=15, elapsed_seconds=0.2),
+                usage=UsageStats(
+                    prompt_tokens=10, completion_tokens=5, total_tokens=15, elapsed_seconds=0.2
+                ),
                 finish_reason="tool_calls",
             )
         else:
             yield ContentDelta(text="Got both files")
             yield StreamEnd(
-                usage=UsageStats(prompt_tokens=20, completion_tokens=10, total_tokens=30, elapsed_seconds=0.2),
+                usage=UsageStats(
+                    prompt_tokens=20, completion_tokens=10, total_tokens=30, elapsed_seconds=0.2
+                ),
                 finish_reason="stop",
             )
 
@@ -441,6 +497,7 @@ async def test_agent_loop_parallel_tool_execution():
     mock_registry.execute = AsyncMock(side_effect=timed_execute)
 
     import time
+
     with patch("core.agent.stream_completion", side_effect=mock_stream):
         overall_start = time.monotonic()
         loop = AgentLoop(
@@ -481,16 +538,24 @@ async def test_agent_loop_parallel_one_fails():
         nonlocal call_count
         call_count += 1
         if call_count == 1:
-            yield ToolCallDelta(index=0, id="call_ok", name="read_file", arguments_chunk='{"path": "good.txt"}')
-            yield ToolCallDelta(index=1, id="call_fail", name="read_file", arguments_chunk='{"path": "bad.txt"}')
+            yield ToolCallDelta(
+                index=0, id="call_ok", name="read_file", arguments_chunk='{"path": "good.txt"}'
+            )
+            yield ToolCallDelta(
+                index=1, id="call_fail", name="read_file", arguments_chunk='{"path": "bad.txt"}'
+            )
             yield StreamEnd(
-                usage=UsageStats(prompt_tokens=10, completion_tokens=5, total_tokens=15, elapsed_seconds=0.2),
+                usage=UsageStats(
+                    prompt_tokens=10, completion_tokens=5, total_tokens=15, elapsed_seconds=0.2
+                ),
                 finish_reason="tool_calls",
             )
         else:
             yield ContentDelta(text="One worked, one failed")
             yield StreamEnd(
-                usage=UsageStats(prompt_tokens=20, completion_tokens=10, total_tokens=30, elapsed_seconds=0.2),
+                usage=UsageStats(
+                    prompt_tokens=20, completion_tokens=10, total_tokens=30, elapsed_seconds=0.2
+                ),
                 finish_reason="stop",
             )
 
@@ -535,16 +600,24 @@ async def test_agent_loop_parallel_permission_sequential():
         nonlocal call_count
         call_count += 1
         if call_count == 1:
-            yield ToolCallDelta(index=0, id="call_1", name="shell", arguments_chunk='{"command": "ls"}')
-            yield ToolCallDelta(index=1, id="call_2", name="shell", arguments_chunk='{"command": "pwd"}')
+            yield ToolCallDelta(
+                index=0, id="call_1", name="shell", arguments_chunk='{"command": "ls"}'
+            )
+            yield ToolCallDelta(
+                index=1, id="call_2", name="shell", arguments_chunk='{"command": "pwd"}'
+            )
             yield StreamEnd(
-                usage=UsageStats(prompt_tokens=10, completion_tokens=5, total_tokens=15, elapsed_seconds=0.2),
+                usage=UsageStats(
+                    prompt_tokens=10, completion_tokens=5, total_tokens=15, elapsed_seconds=0.2
+                ),
                 finish_reason="tool_calls",
             )
         else:
             yield ContentDelta(text="Done")
             yield StreamEnd(
-                usage=UsageStats(prompt_tokens=20, completion_tokens=10, total_tokens=30, elapsed_seconds=0.2),
+                usage=UsageStats(
+                    prompt_tokens=20, completion_tokens=10, total_tokens=30, elapsed_seconds=0.2
+                ),
                 finish_reason="stop",
             )
 
@@ -582,15 +655,21 @@ async def test_agent_loop_malformed_json_arguments():
         nonlocal call_count
         call_count += 1
         if call_count == 1:
-            yield ToolCallDelta(index=0, id="call_bad", name="read_file", arguments_chunk='{bad json!!!}')
+            yield ToolCallDelta(
+                index=0, id="call_bad", name="read_file", arguments_chunk="{bad json!!!}"
+            )
             yield StreamEnd(
-                usage=UsageStats(prompt_tokens=5, completion_tokens=3, total_tokens=8, elapsed_seconds=0.1),
+                usage=UsageStats(
+                    prompt_tokens=5, completion_tokens=3, total_tokens=8, elapsed_seconds=0.1
+                ),
                 finish_reason="tool_calls",
             )
         else:
             yield ContentDelta(text="I see the error")
             yield StreamEnd(
-                usage=UsageStats(prompt_tokens=10, completion_tokens=5, total_tokens=15, elapsed_seconds=0.1),
+                usage=UsageStats(
+                    prompt_tokens=10, completion_tokens=5, total_tokens=15, elapsed_seconds=0.1
+                ),
                 finish_reason="stop",
             )
 
@@ -631,15 +710,21 @@ async def test_agent_loop_retry_then_succeed():
         nonlocal call_count
         call_count += 1
         if call_count == 1:
-            yield ToolCallDelta(index=0, id="call_retry", name="web_search", arguments_chunk='{"query": "test"}')
+            yield ToolCallDelta(
+                index=0, id="call_retry", name="web_search", arguments_chunk='{"query": "test"}'
+            )
             yield StreamEnd(
-                usage=UsageStats(prompt_tokens=5, completion_tokens=3, total_tokens=8, elapsed_seconds=0.1),
+                usage=UsageStats(
+                    prompt_tokens=5, completion_tokens=3, total_tokens=8, elapsed_seconds=0.1
+                ),
                 finish_reason="tool_calls",
             )
         else:
             yield ContentDelta(text="Got results")
             yield StreamEnd(
-                usage=UsageStats(prompt_tokens=10, completion_tokens=5, total_tokens=15, elapsed_seconds=0.1),
+                usage=UsageStats(
+                    prompt_tokens=10, completion_tokens=5, total_tokens=15, elapsed_seconds=0.1
+                ),
                 finish_reason="stop",
             )
 
@@ -684,15 +769,21 @@ async def test_agent_loop_retry_then_fail():
         nonlocal call_count
         call_count += 1
         if call_count == 1:
-            yield ToolCallDelta(index=0, id="call_fail", name="web_search", arguments_chunk='{"query": "test"}')
+            yield ToolCallDelta(
+                index=0, id="call_fail", name="web_search", arguments_chunk='{"query": "test"}'
+            )
             yield StreamEnd(
-                usage=UsageStats(prompt_tokens=5, completion_tokens=3, total_tokens=8, elapsed_seconds=0.1),
+                usage=UsageStats(
+                    prompt_tokens=5, completion_tokens=3, total_tokens=8, elapsed_seconds=0.1
+                ),
                 finish_reason="tool_calls",
             )
         else:
             yield ContentDelta(text="Search failed")
             yield StreamEnd(
-                usage=UsageStats(prompt_tokens=10, completion_tokens=5, total_tokens=15, elapsed_seconds=0.1),
+                usage=UsageStats(
+                    prompt_tokens=10, completion_tokens=5, total_tokens=15, elapsed_seconds=0.1
+                ),
                 finish_reason="stop",
             )
 

@@ -15,7 +15,7 @@ self.addEventListener('install', (event: ExtendableEvent) => {
 			.then((cache) => cache.addAll(ASSETS))
 			.then(() => {
 				(self as unknown as ServiceWorkerGlobalScope).skipWaiting();
-			})
+			}),
 	);
 });
 
@@ -26,7 +26,7 @@ self.addEventListener('activate', (event: ExtendableEvent) => {
 				if (key !== CACHE) await caches.delete(key);
 			}
 			(self as unknown as ServiceWorkerGlobalScope).clients.claim();
-		})
+		}),
 	);
 });
 
@@ -55,6 +55,6 @@ self.addEventListener('fetch', (event: FetchEvent) => {
 				// If offline and not cached, just let it fail
 				return new Response('Offline', { status: 503 });
 			}
-		})()
+		})(),
 	);
 });

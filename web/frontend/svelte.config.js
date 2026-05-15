@@ -6,8 +6,8 @@ export default {
 		adapter: adapter({
 			pages: '../static',
 			assets: '../static',
-			fallback: 'index.html'
-		})
+			fallback: 'index.html',
+		}),
 	},
-	preprocess: vitePreprocess()
+	preprocess: vitePreprocess(),
 };

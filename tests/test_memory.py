@@ -1,5 +1,8 @@
-import pytest
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
 from core.memory import MemoryStore
 
 
@@ -89,15 +92,13 @@ def test_add_duplicate_content_returns_none(memory):
 
 def test_model_registry_memory_config():
     from core.models import ModelRegistry
+
     config_path = Path(__file__).parent.parent / "config" / "models.yaml"
     registry = ModelRegistry(config_path)
     config = registry.memory_config
     assert config["auto_memory"] is True
     assert config["extraction_model"] is None
     assert config["max_memories"] == 100
-
-
-from unittest.mock import patch, AsyncMock, MagicMock
 
 
 @pytest.mark.asyncio
@@ -139,7 +140,8 @@ async def test_extract_memories_handles_invalid_json():
 
     with patch("core.memory.get_async_openai_client", return_value=mock_client):
         result = await extract_memories(
-            messages=[{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}] * 2,
+            messages=[{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}]
+            * 2,
             model="deepseek/deepseek-v4-flash",
         )
     assert result == []
@@ -154,7 +156,8 @@ async def test_extract_memories_handles_api_error():
 
     with patch("core.memory.get_async_openai_client", return_value=mock_client):
         result = await extract_memories(
-            messages=[{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}] * 2,
+            messages=[{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}]
+            * 2,
             model="deepseek/deepseek-v4-flash",
         )
     assert result == []

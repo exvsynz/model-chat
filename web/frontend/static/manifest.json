@@ -1,14 +1,19 @@
 {
-  "name": "model-chat",
-  "short_name": "model-chat",
-  "description": "AI chat client",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#18181b",
-  "theme_color": "#18181b",
-  "icons": [
-    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "/icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
-  ]
+	"name": "model-chat",
+	"short_name": "model-chat",
+	"description": "AI chat client",
+	"start_url": "/",
+	"display": "standalone",
+	"background_color": "#18181b",
+	"theme_color": "#18181b",
+	"icons": [
+		{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+		{ "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+		{
+			"src": "/icons/icon-512-maskable.png",
+			"sizes": "512x512",
+			"type": "image/png",
+			"purpose": "maskable"
+		}
+	]
 }

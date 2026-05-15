@@ -1,15 +1,27 @@
-import pytest
 from unittest.mock import MagicMock
-from prompt_toolkit.document import Document
+
+import pytest
 from prompt_toolkit.completion import CompleteEvent
+from prompt_toolkit.document import Document
+
 from cli.completers import ChatCompleter
 
 
 @pytest.fixture
 def completer():
     handler = MagicMock()
-    handler.registry.list_commands.return_value = ["model", "persona", "help", "quit", "file", "load"]
-    handler.models.list_aliases.return_value = [("deepseek-r1", "deepseek/deepseek-r1"), ("gpt-4o", "openai/gpt-4o")]
+    handler.registry.list_commands.return_value = [
+        "model",
+        "persona",
+        "help",
+        "quit",
+        "file",
+        "load",
+    ]
+    handler.models.list_aliases.return_value = [
+        ("deepseek-r1", "deepseek/deepseek-r1"),
+        ("gpt-4o", "openai/gpt-4o"),
+    ]
     handler.personas.list_names.return_value = ["coder", "tutor", "general"]
     handler.store.list_all.return_value = [{"id": "2026-05-01_chat1"}, {"id": "2026-05-02_chat2"}]
     return ChatCompleter(handler)

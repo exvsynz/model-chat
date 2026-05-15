@@ -5,13 +5,72 @@ from pathlib import Path
 
 from core.client import get_async_openai_client
 
-STOPWORDS = {"the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-             "have", "has", "had", "do", "does", "did", "will", "would", "could",
-             "should", "may", "might", "shall", "can", "to", "of", "in", "for",
-             "on", "with", "at", "by", "as", "into", "through", "during",
-             "before", "after", "and", "but", "or", "not", "no", "so", "if", "then",
-             "than", "that", "this", "it", "its", "i", "my", "me", "we", "our",
-             "you", "your", "they", "their", "he", "she", "his", "her"}
+STOPWORDS = {
+    "the",
+    "a",
+    "an",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "been",
+    "being",
+    "have",
+    "has",
+    "had",
+    "do",
+    "does",
+    "did",
+    "will",
+    "would",
+    "could",
+    "should",
+    "may",
+    "might",
+    "shall",
+    "can",
+    "to",
+    "of",
+    "in",
+    "for",
+    "on",
+    "with",
+    "at",
+    "by",
+    "as",
+    "into",
+    "through",
+    "during",
+    "before",
+    "after",
+    "and",
+    "but",
+    "or",
+    "not",
+    "no",
+    "so",
+    "if",
+    "then",
+    "than",
+    "that",
+    "this",
+    "it",
+    "its",
+    "i",
+    "my",
+    "me",
+    "we",
+    "our",
+    "you",
+    "your",
+    "they",
+    "their",
+    "he",
+    "she",
+    "his",
+    "her",
+}
 
 
 class MemoryStore:
@@ -87,7 +146,9 @@ class MemoryStore:
 
     def _generate_slug(self, content: str, memory_type: str) -> str:
         words = re.findall(r"[a-z0-9]+", content.lower())
-        meaningful = [w for w in words if w not in STOPWORDS and len(w) > 1 and w != memory_type][:6]
+        meaningful = [w for w in words if w not in STOPWORDS and len(w) > 1 and w != memory_type][
+            :6
+        ]
         slug = f"{memory_type}_{'_'.join(meaningful)}"
         slug = slug[:50]
         if (self.memory_dir / f"{slug}.md").exists():
@@ -125,7 +186,7 @@ class MemoryStore:
         if not index_path.exists():
             return
         lines = index_path.read_text(encoding="utf-8").splitlines()
-        lines = [l for l in lines if f"[{filename}]" not in l]
+        lines = [line for line in lines if f"[{filename}]" not in line]
         index_path.write_text("\n".join(lines) + "\n" if lines else "", encoding="utf-8")
 
     def _significant_words(self, text: str) -> set[str]:
@@ -170,16 +231,23 @@ async def extract_memories(messages: list[dict], model: str) -> list[dict]:
         recent = messages[-20:]
         extraction_messages = [
             {"role": "system", "content": EXTRACTION_PROMPT},
-            {"role": "user", "content": "\n".join(
-                f"{m['role'].upper()}: {m.get('content', '')}" for m in recent if m.get('content')
-            )},
+            {
+                "role": "user",
+                "content": "\n".join(
+                    f"{m['role'].upper()}: {m.get('content', '')}"
+                    for m in recent
+                    if m.get("content")
+                ),
+            },
         ]
         response = await client.chat.completions.create(
             model=model,
-            messages=extraction_messages,
+            messages=extraction_messages,  # type: ignore[arg-type]
             stream=False,
         )
-        raw = response.choices[0].message.content.strip()
+        assert not hasattr(response, "__aiter__")
+        content = response.choices[0].message.content
+        raw = content.strip() if content else ""
         if raw.startswith("```"):
             raw = raw.split("\n", 1)[1].rsplit("```", 1)[0].strip()
         data = json.loads(raw)

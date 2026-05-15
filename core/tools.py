@@ -2,11 +2,10 @@ import asyncio
 import fnmatch
 import os
 import re
-import subprocess
 import sys
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Awaitable, Callable
 
 import httpx
 
@@ -46,14 +45,16 @@ class ToolRegistry:
     def get_tool_schemas(self) -> list[dict]:
         schemas = []
         for tool in self._tools.values():
-            schemas.append({
-                "type": "function",
-                "function": {
-                    "name": tool.name,
-                    "description": tool.description,
-                    "parameters": tool.parameters,
-                },
-            })
+            schemas.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": tool.name,
+                        "description": tool.description,
+                        "parameters": tool.parameters,
+                    },
+                }
+            )
         return schemas
 
 
@@ -71,25 +72,36 @@ def create_default_registry(work_dir: Path) -> ToolRegistry:
         lines = content.splitlines()
         offset = args.get("offset", 0)
         limit = args.get("limit", len(lines))
-        selected = lines[offset:offset + limit]
+        selected = lines[offset : offset + limit]
         numbered = [f"{offset + i + 1}\t{line}" for i, line in enumerate(selected)]
         return "\n".join(numbered)
 
-    registry.register(Tool(
-        name="read_file",
-        description="Read a file's contents. Returns lines with line numbers.",
-        parameters={
-            "type": "object",
-            "properties": {
-                "path": {"type": "string", "description": "File path relative to working directory"},
-                "offset": {"type": "integer", "description": "Line offset to start from (0-based)"},
-                "limit": {"type": "integer", "description": "Maximum number of lines to return"},
+    registry.register(
+        Tool(
+            name="read_file",
+            description="Read a file's contents. Returns lines with line numbers.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "File path relative to working directory",
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Line offset to start from (0-based)",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of lines to return",
+                    },
+                },
+                "required": ["path"],
             },
-            "required": ["path"],
-        },
-        execute=read_file,
-        permission="auto",
-    ))
+            execute=read_file,
+            permission="auto",
+        )
+    )
 
     async def glob_tool(args: dict) -> str:
         pattern = args["pattern"]
@@ -110,20 +122,28 @@ def create_default_registry(work_dir: Path) -> ToolRegistry:
             result += f"\n... ({len(matches)} total, showing first 100)"
         return result
 
-    registry.register(Tool(
-        name="glob",
-        description="Find files matching a glob pattern. Returns matching paths.",
-        parameters={
-            "type": "object",
-            "properties": {
-                "pattern": {"type": "string", "description": "Glob pattern (e.g. '**/*.py', 'src/*.ts')"},
-                "path": {"type": "string", "description": "Base directory to search from (relative to working directory)"},
+    registry.register(
+        Tool(
+            name="glob",
+            description="Find files matching a glob pattern. Returns matching paths.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "pattern": {
+                        "type": "string",
+                        "description": "Glob pattern (e.g. '**/*.py', 'src/*.ts')",
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "Base directory to search from (relative to working directory)",
+                    },
+                },
+                "required": ["pattern"],
             },
-            "required": ["pattern"],
-        },
-        execute=glob_tool,
-        permission="auto",
-    ))
+            execute=glob_tool,
+            permission="auto",
+        )
+    )
 
     async def grep_tool(args: dict) -> str:
         pattern = args["pattern"]
@@ -164,21 +184,32 @@ def create_default_registry(work_dir: Path) -> ToolRegistry:
             result += f"\n... {len(matches) - 20} more matches"
         return result
 
-    registry.register(Tool(
-        name="grep",
-        description="Search file contents with a regex pattern. Returns matching lines with file:line format.",
-        parameters={
-            "type": "object",
-            "properties": {
-                "pattern": {"type": "string", "description": "Regular expression pattern to search for"},
-                "path": {"type": "string", "description": "Directory to search in (relative to working directory)"},
-                "include": {"type": "string", "description": "File glob filter (e.g. '*.py', '*.ts')"},
+    registry.register(
+        Tool(
+            name="grep",
+            description="Search file contents with a regex pattern. Returns matching lines with file:line format.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "pattern": {
+                        "type": "string",
+                        "description": "Regular expression pattern to search for",
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "Directory to search in (relative to working directory)",
+                    },
+                    "include": {
+                        "type": "string",
+                        "description": "File glob filter (e.g. '*.py', '*.ts')",
+                    },
+                },
+                "required": ["pattern"],
             },
-            "required": ["pattern"],
-        },
-        execute=grep_tool,
-        permission="auto",
-    ))
+            execute=grep_tool,
+            permission="auto",
+        )
+    )
 
     async def write_file(args: dict) -> str:
         rel_path = Path(args["path"])
@@ -192,20 +223,25 @@ def create_default_registry(work_dir: Path) -> ToolRegistry:
         target.write_text(content, encoding="utf-8")
         return f"Wrote {len(content.encode('utf-8'))} bytes to {args['path']}"
 
-    registry.register(Tool(
-        name="write_file",
-        description="Write content to a file. Creates parent directories if needed. Overwrites existing files.",
-        parameters={
-            "type": "object",
-            "properties": {
-                "path": {"type": "string", "description": "File path relative to working directory"},
-                "content": {"type": "string", "description": "Content to write to the file"},
+    registry.register(
+        Tool(
+            name="write_file",
+            description="Write content to a file. Creates parent directories if needed. Overwrites existing files.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "File path relative to working directory",
+                    },
+                    "content": {"type": "string", "description": "Content to write to the file"},
+                },
+                "required": ["path", "content"],
             },
-            "required": ["path", "content"],
-        },
-        execute=write_file,
-        permission="prompt",
-    ))
+            execute=write_file,
+            permission="prompt",
+        )
+    )
 
     async def edit_file(args: dict) -> str:
         rel_path = Path(args["path"])
@@ -231,21 +267,29 @@ def create_default_registry(work_dir: Path) -> ToolRegistry:
         target.write_text(content, encoding="utf-8")
         return f"Edited {args['path']}: replaced 1 occurrence"
 
-    registry.register(Tool(
-        name="edit_file",
-        description="Edit a file by replacing an exact string match. The old_string must match exactly one location in the file.",
-        parameters={
-            "type": "object",
-            "properties": {
-                "path": {"type": "string", "description": "File path relative to working directory"},
-                "old_string": {"type": "string", "description": "Exact string to find and replace (must be unique in the file)"},
-                "new_string": {"type": "string", "description": "Replacement string"},
+    registry.register(
+        Tool(
+            name="edit_file",
+            description="Edit a file by replacing an exact string match. The old_string must match exactly one location in the file.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "File path relative to working directory",
+                    },
+                    "old_string": {
+                        "type": "string",
+                        "description": "Exact string to find and replace (must be unique in the file)",
+                    },
+                    "new_string": {"type": "string", "description": "Replacement string"},
+                },
+                "required": ["path", "old_string", "new_string"],
             },
-            "required": ["path", "old_string", "new_string"],
-        },
-        execute=edit_file,
-        permission="prompt",
-    ))
+            execute=edit_file,
+            permission="prompt",
+        )
+    )
 
     async def shell_tool(args: dict) -> str:
         command = args["command"]
@@ -277,19 +321,21 @@ def create_default_registry(work_dir: Path) -> ToolRegistry:
         "Run a shell command and return its output. "
         "Uses PowerShell on Windows, bash on Linux/macOS."
     )
-    registry.register(Tool(
-        name="shell",
-        description=shell_desc,
-        parameters={
-            "type": "object",
-            "properties": {
-                "command": {"type": "string", "description": "Shell command to execute"},
+    registry.register(
+        Tool(
+            name="shell",
+            description=shell_desc,
+            parameters={
+                "type": "object",
+                "properties": {
+                    "command": {"type": "string", "description": "Shell command to execute"},
+                },
+                "required": ["command"],
             },
-            "required": ["command"],
-        },
-        execute=shell_tool,
-        permission="prompt",
-    ))
+            execute=shell_tool,
+            permission="prompt",
+        )
+    )
 
     async def web_search(args: dict) -> str:
         api_key = os.environ.get("BRAVE_SEARCH_API_KEY")
@@ -324,19 +370,24 @@ def create_default_registry(work_dir: Path) -> ToolRegistry:
             lines.append(f"{i}. {title}\n   {url}\n   {snippet}")
         return "\n\n".join(lines)
 
-    registry.register(Tool(
-        name="web_search",
-        description="Search the web using Brave Search. Use only when you need current or factual information you don't already know. After receiving results, synthesize them into your answer — do not search again unless the results were clearly insufficient.",
-        parameters={
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": "Search query"},
-                "count": {"type": "integer", "description": "Number of results (1-10, default 5)"},
+    registry.register(
+        Tool(
+            name="web_search",
+            description="Search the web using Brave Search. Use only when you need current or factual information you don't already know. After receiving results, synthesize them into your answer — do not search again unless the results were clearly insufficient.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search query"},
+                    "count": {
+                        "type": "integer",
+                        "description": "Number of results (1-10, default 5)",
+                    },
+                },
+                "required": ["query"],
             },
-            "required": ["query"],
-        },
-        execute=web_search,
-        permission="auto",
-    ))
+            execute=web_search,
+            permission="auto",
+        )
+    )
 
     return registry

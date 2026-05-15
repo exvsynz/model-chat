@@ -6,6 +6,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from dotenv import load_dotenv
+
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 import uvicorn
@@ -15,13 +16,12 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
-from core.agent import AgentLoop, TextDelta, ToolCallStart, ToolResult, Finished
+from core.agent import AgentLoop, Finished, TextDelta, ToolCallStart, ToolResult
 from core.memory import MemoryStore, extract_memories
 from core.models import ModelRegistry, fetch_all_models
 from core.personas import PersonaStore
 from core.store import ConversationStore
 from core.tools import create_default_registry
-
 
 logger = logging.getLogger("model-chat")
 
@@ -142,12 +142,14 @@ def create_app() -> FastAPI:
             request_id = str(uuid4())
             future = asyncio.get_event_loop().create_future()
             pending_permissions[request_id] = future
-            await event_queue.put({
-                "type": "permission_request",
-                "request_id": request_id,
-                "tool_name": name,
-                "arguments": arguments,
-            })
+            await event_queue.put(
+                {
+                    "type": "permission_request",
+                    "request_id": request_id,
+                    "tool_name": name,
+                    "arguments": arguments,
+                }
+            )
             try:
                 return await asyncio.wait_for(future, timeout=120)
             except asyncio.TimeoutError:
@@ -191,20 +193,28 @@ def create_app() -> FastAPI:
                     elif isinstance(event, TextDelta):
                         yield {"data": json.dumps({"type": "text", "content": event.content})}
                     elif isinstance(event, ToolCallStart):
-                        yield {"data": json.dumps({
-                            "type": "tool_call",
-                            "id": event.id,
-                            "name": event.name,
-                            "arguments": event.arguments,
-                        })}
+                        yield {
+                            "data": json.dumps(
+                                {
+                                    "type": "tool_call",
+                                    "id": event.id,
+                                    "name": event.name,
+                                    "arguments": event.arguments,
+                                }
+                            )
+                        }
                     elif isinstance(event, ToolResult):
-                        yield {"data": json.dumps({
-                            "type": "tool_result",
-                            "id": event.id,
-                            "name": event.name,
-                            "output": event.output[:2000],
-                            "is_error": event.is_error,
-                        })}
+                        yield {
+                            "data": json.dumps(
+                                {
+                                    "type": "tool_result",
+                                    "id": event.id,
+                                    "name": event.name,
+                                    "output": event.output[:2000],
+                                    "is_error": event.is_error,
+                                }
+                            )
+                        }
                     elif isinstance(event, Finished):
                         usage = None
                         if event.usage and event.usage.total_tokens > 0:
@@ -273,7 +283,9 @@ def create_app() -> FastAPI:
     if static_dir.exists():
         app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
     else:
-        logger.warning(f"Frontend static build not found at {static_dir} — web UI will not be served")
+        logger.warning(
+            f"Frontend static build not found at {static_dir} — web UI will not be served"
+        )
 
     return app
 
