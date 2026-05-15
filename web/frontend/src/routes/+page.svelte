@@ -218,13 +218,13 @@
                         onkeydown={handleKeydown}
                         placeholder="Type a message..."
                         rows="1"
-                        class="flex-1 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-xl px-4 py-3 text-sm resize-none border border-zinc-300 dark:border-zinc-600 focus:outline-none focus:border-zinc-400 placeholder-zinc-400 dark:placeholder-zinc-500"
+                        class="flex-1 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-xl px-4 py-3 text-base md:text-sm resize-none border border-zinc-300 dark:border-zinc-600 focus:outline-none focus:border-zinc-400 placeholder-zinc-400 dark:placeholder-zinc-500"
                         disabled={isStreaming}
                     ></textarea>
                     <button
                         onclick={sendMessage}
                         disabled={isStreaming || !inputText.trim()}
-                        class="bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 disabled:text-zinc-500 text-white px-4 py-2 rounded-xl text-sm transition-colors"
+                        class="bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 disabled:text-zinc-500 text-white px-4 py-3 md:py-2 rounded-xl text-sm transition-colors"
                     >
                         Send
                     </button>

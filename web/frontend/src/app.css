@@ -19,3 +19,18 @@ body {
 pre code {
     @apply text-sm;
 }
+
+body {
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+@supports (height: 100dvh) {
+    .h-screen {
+        height: 100dvh !important;
+    }
+}
+
+html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
