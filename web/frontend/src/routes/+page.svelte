@@ -40,6 +40,7 @@
     let inputText = $state('');
     let isStreaming = $state(false);
     let inputEl: HTMLTextAreaElement | undefined = $state();
+    let sidebarOpen = $state(false);
 
     $effect(() => {
         Promise.all([
@@ -194,20 +195,23 @@
         bind:currentModel
         bind:currentPersona
         bind:currentEffort
+        onToggleSidebar={() => sidebarOpen = !sidebarOpen}
     />
     <div class="flex flex-1 overflow-hidden">
         <Sidebar
             {conversations}
             {memories}
+            open={sidebarOpen}
             onLoad={handleLoad}
             onNew={handleNew}
             onDelete={handleDelete}
             onDeleteMemory={handleDeleteMemory}
+            onClose={() => sidebarOpen = false}
         />
         <div class="flex flex-col flex-1">
             <Chat {messages} {streamingContent} {streamingBlocks} {pendingPermission} onPermissionRespond={handlePermission} />
-            <div class="border-t border-zinc-300 dark:border-zinc-700 p-4">
-                <div class="max-w-3xl mx-auto flex gap-2">
+            <div class="border-t border-zinc-300 dark:border-zinc-700 p-2 md:p-4">
+                <div class="max-w-full md:max-w-3xl md:mx-auto flex gap-2">
                     <textarea
                         bind:this={inputEl}
                         bind:value={inputText}

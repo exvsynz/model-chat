@@ -8,6 +8,7 @@
         currentModel = $bindable(),
         currentPersona = $bindable(),
         currentEffort = $bindable(),
+        onToggleSidebar,
     }: {
         models: ModelsResponse;
         allModels: OpenRouterModel[];
@@ -15,6 +16,7 @@
         currentModel: string;
         currentPersona: string | null;
         currentEffort: string | null;
+        onToggleSidebar?: () => void;
     } = $props();
 
     let search = $state('');
@@ -69,10 +71,20 @@
     }
 </script>
 
-<div class="flex items-center gap-4 px-4 py-2 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700">
-    <span class="text-sm font-semibold text-zinc-400">model-chat</span>
+<div class="flex items-center gap-2 md:gap-4 px-2 md:px-4 py-2 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700">
+    <button
+        onclick={onToggleSidebar}
+        class="md:hidden p-1 rounded text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+        title="Toggle sidebar"
+    >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+    </button>
 
-    <div class="relative">
+    <span class="text-sm font-semibold text-zinc-400 hidden md:inline">model-chat</span>
+
+    <div class="relative flex-1 md:flex-none">
         <input
             bind:this={inputEl}
             type="text"
@@ -81,10 +93,10 @@
             onfocus={handleInputFocus}
             onblur={handleInputBlur}
             placeholder="Search models..."
-            class="bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm rounded px-2 py-1 border border-zinc-300 dark:border-zinc-600 focus:outline-none focus:border-zinc-400 w-72"
+            class="bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm rounded px-2 py-1 border border-zinc-300 dark:border-zinc-600 focus:outline-none focus:border-zinc-400 w-full md:w-72"
         />
         {#if showDropdown}
-            <div class="absolute top-full left-0 mt-1 w-96 max-h-80 overflow-y-auto bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-lg shadow-xl z-50">
+            <div class="absolute top-full left-0 mt-1 w-[calc(100vw-1rem)] md:w-96 max-h-80 overflow-y-auto bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-lg shadow-xl z-50">
                 {#each filteredModels as model}
                     <button
                         onmousedown={() => selectModel(model.id)}
@@ -101,7 +113,7 @@
         {/if}
     </div>
 
-    <div class="flex gap-1">
+    <div class="hidden sm:flex gap-1">
         {#each ['low', 'medium', 'high'] as level}
             <button
                 class="px-2 py-1 text-xs rounded {currentEffort === level ? 'bg-blue-600 text-white' : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-600'}"
@@ -115,7 +127,7 @@
     <select
         value={currentPersona || ''}
         onchange={onPersonaChange}
-        class="bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm rounded px-2 py-1 border border-zinc-300 dark:border-zinc-600 focus:outline-none focus:border-zinc-400"
+        class="hidden sm:block bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm rounded px-2 py-1 border border-zinc-300 dark:border-zinc-600 focus:outline-none focus:border-zinc-400"
     >
         <option value="">No persona</option>
         {#each personas as name}

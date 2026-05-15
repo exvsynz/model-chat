@@ -52,9 +52,9 @@
     });
 </script>
 
-<div bind:this={chatContainer} class="flex-1 overflow-y-auto px-4 py-6 space-y-6">
+<div bind:this={chatContainer} class="flex-1 overflow-y-auto px-2 md:px-4 py-6 space-y-6">
     {#each messages as msg}
-        <div class="max-w-3xl mx-auto">
+        <div class="max-w-full md:max-w-3xl md:mx-auto">
             {#if msg.role === 'user'}
                 <div class="flex justify-end">
                     <div class="bg-zinc-200 dark:bg-zinc-700 rounded-2xl px-4 py-2 max-w-[80%]">
@@ -85,7 +85,7 @@
     {/each}
 
     {#if streamingBlocks.length > 0}
-        <div class="max-w-3xl mx-auto">
+        <div class="max-w-full md:max-w-3xl md:mx-auto">
             {#each streamingBlocks as block}
                 {#if block.type === 'text'}
                     <div class="prose dark:prose-invert prose-sm max-w-none">
@@ -97,7 +97,7 @@
             {/each}
         </div>
     {:else if streamingContent}
-        <div class="max-w-3xl mx-auto">
+        <div class="max-w-full md:max-w-3xl md:mx-auto">
             <div class="prose dark:prose-invert prose-sm max-w-none">
                 {@html renderMarkdown(streamingContent)}
             </div>
@@ -105,7 +105,7 @@
     {/if}
 
     {#if pendingPermission}
-        <div class="max-w-3xl mx-auto">
+        <div class="max-w-full md:max-w-3xl md:mx-auto">
             <PermissionPrompt
                 toolName={pendingPermission.toolName}
                 args={pendingPermission.args}
