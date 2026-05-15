@@ -3,6 +3,9 @@ import asyncio
 import time
 from pathlib import Path
 
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+
 from prompt_toolkit import PromptSession
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.history import FileHistory
@@ -30,6 +33,15 @@ from cli.render import (
 
 
 DATA_DIR = Path.home() / ".model-chat"
+BASE_PROMPT_PATH = Path(__file__).resolve().parents[1] / "config" / "base_prompt.txt"
+_base_prompt_cache: str | None = None
+
+
+def _load_base_prompt() -> str:
+    global _base_prompt_cache
+    if _base_prompt_cache is None:
+        _base_prompt_cache = BASE_PROMPT_PATH.read_text(encoding="utf-8").strip()
+    return _base_prompt_cache
 
 SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 
@@ -63,11 +75,15 @@ async def run_chat(handler: CommandHandler, user_input: str) -> None:
     work_dir = Path.cwd()
     registry = create_default_registry(work_dir=work_dir)
 
+    base = _load_base_prompt()
+    persona = handler.system_prompt
     memory_section = handler.memory.format_for_prompt() if handler.memory else None
+    parts = [base]
+    if persona:
+        parts.append(persona)
     if memory_section:
-        effective_prompt = (handler.system_prompt or "") + "\n\n" + memory_section
-    else:
-        effective_prompt = handler.system_prompt
+        parts.append(memory_section)
+    effective_prompt = "\n\n".join(parts)
 
     async def ask_permission(name: str, arguments: dict) -> bool:
         if name in handler.allowed_tools:
@@ -206,7 +222,7 @@ async def repl(handler: CommandHandler) -> None:
 def main():
     parser = argparse.ArgumentParser(description="Chat with any LLM via OpenRouter")
     parser.add_argument("--model", default=None, help="Starting model (alias or full ID)")
-    parser.add_argument("--persona", default=None, help="Starting persona")
+    parser.add_argument("--persona", default="coder", help="Starting persona (default: coder)")
     parser.add_argument("--effort", choices=["low", "medium", "high"], default=None, help="Reasoning effort")
     parser.add_argument("--web", action="store_true", help="Launch web UI instead of CLI")
     parser.add_argument("--host", default="127.0.0.1", help="Web server host (default: 127.0.0.1)")

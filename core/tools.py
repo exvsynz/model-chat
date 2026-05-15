@@ -326,7 +326,7 @@ def create_default_registry(work_dir: Path) -> ToolRegistry:
 
     registry.register(Tool(
         name="web_search",
-        description="Search the web using Brave Search. Use this when you need current or up-to-date information.",
+        description="Search the web using Brave Search. Use only when you need current or factual information you don't already know. After receiving results, synthesize them into your answer — do not search again unless the results were clearly insufficient.",
         parameters={
             "type": "object",
             "properties": {

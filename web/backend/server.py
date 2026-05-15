@@ -5,6 +5,9 @@ import os
 from pathlib import Path
 from uuid import uuid4
 
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,6 +26,15 @@ from core.tools import create_default_registry
 logger = logging.getLogger("model-chat")
 
 DATA_DIR = Path.home() / ".model-chat"
+BASE_PROMPT_PATH = Path(__file__).resolve().parents[2] / "config" / "base_prompt.txt"
+_base_prompt_cache: str | None = None
+
+
+def _load_base_prompt() -> str:
+    global _base_prompt_cache
+    if _base_prompt_cache is None:
+        _base_prompt_cache = BASE_PROMPT_PATH.read_text(encoding="utf-8").strip()
+    return _base_prompt_cache
 
 
 class ChatRequest(BaseModel):
@@ -111,13 +123,15 @@ def create_app() -> FastAPI:
 
     @app.post("/api/chat")
     async def chat(req: ChatRequest):
-        system_prompt = None
-        if req.persona:
-            system_prompt = personas.load(req.persona)
-
+        base = _load_base_prompt()
+        persona = personas.load(req.persona) if req.persona else None
         memory_section = memory.format_for_prompt()
+        parts = [base]
+        if persona:
+            parts.append(persona)
         if memory_section:
-            system_prompt = (system_prompt or "") + "\n\n" + memory_section
+            parts.append(memory_section)
+        system_prompt = "\n\n".join(parts)
 
         messages = list(req.messages)
         event_queue: asyncio.Queue = asyncio.Queue()
