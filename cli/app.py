@@ -27,12 +27,14 @@ from core.client import ChatError
 from core.memory import MemoryStore
 from core.models import ModelRegistry
 from core.personas import PersonaStore
+from core.policy import PolicyEngine
 from core.store import ConversationStore
 from core.tools import create_default_registry
 from core.usage import format_usage
 
 DATA_DIR = Path.home() / ".model-chat"
 BASE_PROMPT_PATH = Path(__file__).resolve().parents[1] / "config" / "base_prompt.txt"
+DEFAULT_POLICY_PATH = Path(__file__).resolve().parents[1] / "config" / "policy.yaml"
 _base_prompt_cache: str | None = None
 
 
@@ -69,7 +71,9 @@ def get_prompt_session(handler: CommandHandler) -> PromptSession:
     )
 
 
-async def run_chat(handler: CommandHandler, user_input: str) -> None:
+async def run_chat(
+    handler: CommandHandler, user_input: str, policy_engine: PolicyEngine | None = None
+) -> None:
     handler.messages.append({"role": "user", "content": user_input})
 
     work_dir = Path.cwd()
@@ -109,6 +113,8 @@ async def run_chat(handler: CommandHandler, user_input: str) -> None:
         permission_fn=ask_permission,
         effort=handler.effort,
         abort_event=abort_event,
+        policy_engine=policy_engine,
+        work_dir=work_dir,
     )
 
     spinner = asyncio.create_task(_spinner_task(time.monotonic()))
@@ -173,7 +179,7 @@ async def run_chat(handler: CommandHandler, user_input: str) -> None:
     handler.last_response = full_response
 
 
-async def repl(handler: CommandHandler) -> None:
+async def repl(handler: CommandHandler, policy_engine: PolicyEngine | None = None) -> None:
     session = get_prompt_session(handler)
 
     model_short = (
@@ -216,7 +222,7 @@ async def repl(handler: CommandHandler) -> None:
             if result == "retry":
                 last_user_msg = handler.messages[-1]["content"]
                 handler.messages.pop()
-                await run_chat(handler, last_user_msg)
+                await run_chat(handler, last_user_msg, policy_engine)
             if result == "edit":
                 edit_input = await session.prompt_async(
                     HTML(f"<aaa fg='ansiyellow'>[{model_short}] edit</aaa> &gt; "),
@@ -224,11 +230,11 @@ async def repl(handler: CommandHandler) -> None:
                 )
                 edit_input = edit_input.strip()
                 if edit_input:
-                    await run_chat(handler, edit_input)
+                    await run_chat(handler, edit_input, policy_engine)
                 handler.edit_text = None
             continue
 
-        await run_chat(handler, user_input)
+        await run_chat(handler, user_input, policy_engine)
 
 
 def main():
@@ -243,6 +249,9 @@ def main():
     parser.add_argument("--port", type=int, default=8000, help="Web server port (default: 8000)")
     parser.add_argument(
         "--no-auto-memory", action="store_true", help="Disable auto memory extraction"
+    )
+    parser.add_argument(
+        "--policy", default=None, help="Path to policy YAML file (default: config/policy.yaml)"
     )
     args = parser.parse_args()
 
@@ -281,7 +290,16 @@ def main():
         handler.auto_memory = models.memory_config["auto_memory"]
     handler.max_memories = models.memory_config["max_memories"]
 
-    asyncio.run(repl(handler))
+    policy_path = Path(args.policy) if args.policy else DEFAULT_POLICY_PATH
+    policy_engine = None
+    if policy_path.exists():
+        try:
+            policy_engine = PolicyEngine.from_yaml(policy_path)
+            print_info(f"Loaded policy: {policy_path.name} ({len(policy_engine.rules)} rules)")
+        except Exception as e:
+            print_error(f"Failed to load policy {policy_path}: {e}")
+
+    asyncio.run(repl(handler, policy_engine))
 
 
 if __name__ == "__main__":

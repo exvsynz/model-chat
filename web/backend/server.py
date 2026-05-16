@@ -20,6 +20,7 @@ from core.agent import AgentLoop, Finished, TextDelta, ToolCallStart, ToolResult
 from core.memory import MemoryStore, extract_memories
 from core.models import ModelRegistry, fetch_all_models
 from core.personas import PersonaStore
+from core.policy import PolicyEngine
 from core.store import ConversationStore
 from core.tools import create_default_registry
 
@@ -80,9 +81,19 @@ def create_app() -> FastAPI:
     personas = PersonaStore.from_bundled()
     store = ConversationStore(DATA_DIR / "conversations")
     memory = MemoryStore(DATA_DIR / "memory")
-    registry = create_default_registry(work_dir=Path.cwd())
+    work_dir = Path.cwd()
+    registry = create_default_registry(work_dir=work_dir)
     pending_permissions: dict[str, asyncio.Future] = {}
     active_abort_events: dict[str, asyncio.Event] = {}
+
+    policy_path = Path(__file__).resolve().parents[2] / "config" / "policy.yaml"
+    policy_engine: PolicyEngine | None = None
+    if policy_path.exists():
+        try:
+            policy_engine = PolicyEngine.from_yaml(policy_path)
+            logger.info("Loaded policy: %s (%d rules)", policy_path.name, len(policy_engine.rules))
+        except Exception as e:
+            logger.warning("Failed to load policy %s: %s", policy_path, e)
 
     @app.get("/api/models")
     def get_models():
@@ -170,6 +181,8 @@ def create_app() -> FastAPI:
                     permission_fn=permission_fn,
                     effort=req.effort,
                     abort_event=abort_event,
+                    policy_engine=policy_engine,
+                    work_dir=work_dir,
                 )
                 async for event in loop.run():
                     await event_queue.put(event)

@@ -1,0 +1,98 @@
+# Policy engine configuration for model-chat agentic workflow.
+# Rules are evaluated by priority (highest first). First match wins.
+# Actions: allow, deny, prompt
+# Default action applies when no rule matches.
+
+default_action: prompt
+
+rules:
+  # --- Deny dangerous shell commands (high priority) ---
+  - id: block-dangerous-shell
+    tool: shell
+    action: deny
+    priority: 100
+    conditions:
+      command_matches:
+        - "rm -rf *"
+        - "del /s /q *"
+        - "*| sh"
+        - "*| bash"
+        - "*| powershell*"
+        - "curl*|*"
+        - "wget*|*"
+        - "*.env*"
+        - "*API_KEY*"
+        - "*SECRET*"
+        - "*TOKEN*"
+        - "*PASSWORD*"
+        - "*OPENROUTER*"
+        - "format *"
+        - "diskpart*"
+
+  # --- Allow read-only tools ---
+  - id: allow-read-file
+    tool: read_file
+    action: allow
+
+  - id: allow-glob
+    tool: glob
+    action: allow
+
+  - id: allow-grep
+    tool: grep
+    action: allow
+
+  - id: allow-web-search
+    tool: web_search
+    action: allow
+
+  # --- Allow safe shell commands ---
+  - id: allow-safe-shell
+    tool: shell
+    action: allow
+    conditions:
+      command_matches:
+        - "git status*"
+        - "git log*"
+        - "git diff*"
+        - "git branch*"
+        - "git show*"
+        - "pytest*"
+        - "python -m pytest*"
+        - "ruff *"
+        - "mypy *"
+        - "npm run lint*"
+        - "npm run format*"
+        - "ls *"
+        - "dir *"
+        - "cat *"
+        - "type *"
+        - "Get-ChildItem*"
+        - "Get-Content*"
+
+  # --- Allow file writes within project directories ---
+  - id: allow-write-in-project
+    tool: write_file
+    action: allow
+    conditions:
+      path_within:
+        - "core/**"
+        - "cli/**"
+        - "web/**"
+        - "tests/**"
+        - "config/**"
+        - "docs/**"
+        - "scripts/**"
+
+  - id: allow-edit-in-project
+    tool: edit_file
+    action: allow
+    conditions:
+      path_within:
+        - "core/**"
+        - "cli/**"
+        - "web/**"
+        - "tests/**"
+        - "config/**"
+        - "docs/**"
+        - "scripts/**"

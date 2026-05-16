@@ -5,8 +5,10 @@ import re
 import time
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
+from pathlib import Path
 
 from core.client import ContentDelta, StreamEnd, ToolCallDelta, stream_completion
+from core.policy import PolicyEngine
 from core.usage import UsageStats
 
 logger = logging.getLogger("model-chat.agent")
@@ -59,6 +61,8 @@ class AgentLoop:
         max_iterations: int = 25,
         timeout_seconds: float = 300,
         abort_event: asyncio.Event | None = None,
+        policy_engine: PolicyEngine | None = None,
+        work_dir: Path | None = None,
     ):
         self.model = model
         self.messages = messages  # by reference — caller sees appended tool calls
@@ -69,6 +73,8 @@ class AgentLoop:
         self.max_iterations = max_iterations
         self.timeout_seconds = timeout_seconds
         self.abort_event = abort_event
+        self.policy_engine = policy_engine
+        self.work_dir = work_dir
 
     def _check_abort(self):
         if self.abort_event and self.abort_event.is_set():
@@ -182,10 +188,24 @@ class AgentLoop:
                 yield ToolCallStart(id=tc["id"], name=tc["name"], arguments=arguments)
                 parsed_calls.append((tc, arguments))
 
-                if i not in early_results and self.tools.needs_permission(tc["name"]):
-                    allowed = await self.permission_fn(tc["name"], arguments)
-                    if not allowed:
-                        early_results[i] = ("Error: User denied this tool call", True)
+                if i not in early_results:
+                    decision = (
+                        self.policy_engine.evaluate(tc["name"], arguments, self.work_dir)
+                        if self.policy_engine
+                        else None
+                    )
+                    if decision and decision.action == "allow":
+                        logger.debug(
+                            "policy auto-approved %s (rule: %s)", tc["name"], decision.rule_id
+                        )
+                    elif decision and decision.action == "deny":
+                        early_results[i] = (f"Denied by policy: {decision.reason}", True)
+                    elif self.tools.needs_permission(tc["name"]) or (
+                        decision and decision.action == "prompt"
+                    ):
+                        allowed = await self.permission_fn(tc["name"], arguments)
+                        if not allowed:
+                            early_results[i] = ("Error: User denied this tool call", True)
 
             # Phase 2: execute approved tools concurrently (with one retry on transient errors)
             async def _exec(i, tc, arguments, _early=early_results):
