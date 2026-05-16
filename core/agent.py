@@ -7,6 +7,7 @@ from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from pathlib import Path
 
+from core.budget import Budget, BudgetTracker
 from core.client import ContentDelta, StreamEnd, ToolCallDelta, stream_completion
 from core.policy import PolicyEngine
 from core.usage import UsageStats
@@ -63,6 +64,7 @@ class AgentLoop:
         abort_event: asyncio.Event | None = None,
         policy_engine: PolicyEngine | None = None,
         work_dir: Path | None = None,
+        budget: Budget | None = None,
     ):
         self.model = model
         self.messages = messages  # by reference — caller sees appended tool calls
@@ -75,6 +77,7 @@ class AgentLoop:
         self.abort_event = abort_event
         self.policy_engine = policy_engine
         self.work_dir = work_dir
+        self.budget_tracker = BudgetTracker(budget) if budget else None
 
     def _check_abort(self):
         if self.abort_event and self.abort_event.is_set():
@@ -140,6 +143,23 @@ class AgentLoop:
                     total_usage.completion_tokens += event.usage.completion_tokens
                     total_usage.total_tokens += event.usage.total_tokens
                     total_usage.elapsed_seconds += event.usage.elapsed_seconds
+                    if self.budget_tracker:
+                        self.budget_tracker.record(event.usage, self.model)
+                        status = self.budget_tracker.check()
+                        if status == "exceeded":
+                            bt = self.budget_tracker
+                            yield TextDelta(
+                                content=f"\n\n[Stopped: budget exceeded — "
+                                f"{bt.total_tokens} tokens, ${bt.estimated_cost_usd:.4f}]"
+                            )
+                            yield Finished(usage=total_usage, stop_reason="budget_exceeded")
+                            return
+                        if status == "warning":
+                            bt = self.budget_tracker
+                            yield TextDelta(
+                                content=f"\n\n[Warning: approaching budget limit — "
+                                f"{bt.total_tokens} tokens, ${bt.estimated_cost_usd:.4f}]"
+                            )
 
             # Build assistant message
             assistant_msg: dict = {"role": "assistant"}

@@ -9,6 +9,14 @@ from pathlib import Path
 
 import httpx
 
+from core.safety import (
+    backup_file,
+    check_write_safety,
+    get_tool_timeout,
+    sanitize_env,
+    truncate_output,
+)
+
 
 @dataclass
 class Tool:
@@ -38,7 +46,8 @@ class ToolRegistry:
         if not tool:
             return f"Error: unknown tool '{name}'"
         try:
-            return await tool.execute(arguments)
+            result = await tool.execute(arguments)
+            return truncate_output(result)
         except Exception as e:
             return f"Error: {e}"
 
@@ -218,8 +227,12 @@ def create_default_registry(work_dir: Path) -> ToolRegistry:
             target.relative_to(work_dir.resolve())
         except ValueError:
             return "Error: write denied — path resolves outside working directory"
-        target.parent.mkdir(parents=True, exist_ok=True)
         content = args["content"]
+        safety_err = check_write_safety(content, target)
+        if safety_err:
+            return safety_err
+        backup_file(target, work_dir)
+        target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
         return f"Wrote {len(content.encode('utf-8'))} bytes to {args['path']}"
 
@@ -263,8 +276,12 @@ def create_default_registry(work_dir: Path) -> ToolRegistry:
             return "Error: old_string not found in file"
         if count > 1:
             return f"Error: old_string matches {count} locations — provide more context to make it unique"
-        content = content.replace(old_string, new_string, 1)
-        target.write_text(content, encoding="utf-8")
+        new_content = content.replace(old_string, new_string, 1)
+        safety_err = check_write_safety(new_content, target)
+        if safety_err:
+            return safety_err
+        backup_file(target, work_dir)
+        target.write_text(new_content, encoding="utf-8")
         return f"Edited {args['path']}: replaced 1 occurrence"
 
     registry.register(
@@ -293,6 +310,8 @@ def create_default_registry(work_dir: Path) -> ToolRegistry:
 
     async def shell_tool(args: dict) -> str:
         command = args["command"]
+        safe_env = sanitize_env(os.environ.copy())
+        timeout = get_tool_timeout("shell")
         if sys.platform == "win32":
             shell_args = ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command]
         else:
@@ -304,8 +323,9 @@ def create_default_registry(work_dir: Path) -> ToolRegistry:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
                 cwd=work_dir,
+                env=safe_env,
             )
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=120)
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
             output = stdout.decode("utf-8", errors="replace")
             if proc.returncode != 0:
                 output += f"\n[exit code: {proc.returncode}]"
@@ -313,7 +333,7 @@ def create_default_registry(work_dir: Path) -> ToolRegistry:
         except asyncio.TimeoutError:
             proc.kill()
             await proc.wait()
-            return "Error: command timed out after 120 seconds"
+            return f"Error: command timed out after {timeout} seconds"
         except Exception as e:
             return f"Error running command: {e}"
 
