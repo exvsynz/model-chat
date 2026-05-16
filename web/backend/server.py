@@ -17,6 +17,8 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 from core.agent import AgentLoop, Finished, TextDelta, ToolCallStart, ToolResult
+from core.mcp_config import load_mcp_configs_merged
+from core.mcp_setup import MCPManager
 from core.memory import MemoryStore, extract_memories
 from core.models import ModelRegistry, fetch_all_models
 from core.personas import PersonaStore
@@ -64,8 +66,33 @@ class PermissionResponse(BaseModel):
     approved: bool
 
 
+BUNDLED_MCP_PATH = Path(__file__).resolve().parents[2] / "config" / "mcp.yaml"
+USER_MCP_PATH = DATA_DIR / "mcp.yaml"
+
+
 def create_app() -> FastAPI:
-    app = FastAPI(title="model-chat")
+    from contextlib import asynccontextmanager
+
+    models = ModelRegistry.from_bundled()
+    personas = PersonaStore.from_bundled()
+    store = ConversationStore(DATA_DIR / "conversations")
+    memory = MemoryStore(DATA_DIR / "memory")
+    work_dir = Path.cwd()
+    registry = create_default_registry(work_dir=work_dir)
+
+    mcp_manager = MCPManager()
+
+    @asynccontextmanager
+    async def lifespan(app):
+        configs = load_mcp_configs_merged(bundled_path=BUNDLED_MCP_PATH, user_path=USER_MCP_PATH)
+        if configs:
+            await mcp_manager.setup(registry, configs)
+            if mcp_manager.clients:
+                logger.info("MCP: %d server(s) connected", len(mcp_manager.clients))
+        yield
+        await mcp_manager.shutdown()
+
+    app = FastAPI(title="model-chat", lifespan=lifespan)
 
     if not os.environ.get("OPENROUTER_API_KEY"):
         logger.warning("OPENROUTER_API_KEY is not set — /api/chat will fail")
@@ -76,13 +103,6 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-
-    models = ModelRegistry.from_bundled()
-    personas = PersonaStore.from_bundled()
-    store = ConversationStore(DATA_DIR / "conversations")
-    memory = MemoryStore(DATA_DIR / "memory")
-    work_dir = Path.cwd()
-    registry = create_default_registry(work_dir=work_dir)
     pending_permissions: dict[str, asyncio.Future] = {}
     active_abort_events: dict[str, asyncio.Event] = {}
 

@@ -24,6 +24,8 @@ from cli.render import (
 )
 from core.agent import AgentLoop, Finished, TextDelta, ToolCallStart, ToolResult
 from core.client import ChatError
+from core.mcp_config import load_mcp_configs_merged
+from core.mcp_setup import MCPManager
 from core.memory import MemoryStore
 from core.models import ModelRegistry
 from core.personas import PersonaStore
@@ -35,6 +37,8 @@ from core.usage import format_usage
 DATA_DIR = Path.home() / ".model-chat"
 BASE_PROMPT_PATH = Path(__file__).resolve().parents[1] / "config" / "base_prompt.txt"
 DEFAULT_POLICY_PATH = Path(__file__).resolve().parents[1] / "config" / "policy.yaml"
+BUNDLED_MCP_PATH = Path(__file__).resolve().parents[1] / "config" / "mcp.yaml"
+USER_MCP_PATH = DATA_DIR / "mcp.yaml"
 _base_prompt_cache: str | None = None
 
 
@@ -72,12 +76,18 @@ def get_prompt_session(handler: CommandHandler) -> PromptSession:
 
 
 async def run_chat(
-    handler: CommandHandler, user_input: str, policy_engine: PolicyEngine | None = None
+    handler: CommandHandler,
+    user_input: str,
+    policy_engine: PolicyEngine | None = None,
+    mcp_manager: MCPManager | None = None,
 ) -> None:
     handler.messages.append({"role": "user", "content": user_input})
 
     work_dir = Path.cwd()
     registry = create_default_registry(work_dir=work_dir)
+
+    if mcp_manager:
+        await mcp_manager.register_tools(registry)
 
     base = _load_base_prompt()
     persona = handler.system_prompt
@@ -179,7 +189,11 @@ async def run_chat(
     handler.last_response = full_response
 
 
-async def repl(handler: CommandHandler, policy_engine: PolicyEngine | None = None) -> None:
+async def repl(
+    handler: CommandHandler,
+    policy_engine: PolicyEngine | None = None,
+    mcp_manager: MCPManager | None = None,
+) -> None:
     session = get_prompt_session(handler)
 
     model_short = (
@@ -222,7 +236,7 @@ async def repl(handler: CommandHandler, policy_engine: PolicyEngine | None = Non
             if result == "retry":
                 last_user_msg = handler.messages[-1]["content"]
                 handler.messages.pop()
-                await run_chat(handler, last_user_msg, policy_engine)
+                await run_chat(handler, last_user_msg, policy_engine, mcp_manager)
             if result == "edit":
                 edit_input = await session.prompt_async(
                     HTML(f"<aaa fg='ansiyellow'>[{model_short}] edit</aaa> &gt; "),
@@ -230,11 +244,11 @@ async def repl(handler: CommandHandler, policy_engine: PolicyEngine | None = Non
                 )
                 edit_input = edit_input.strip()
                 if edit_input:
-                    await run_chat(handler, edit_input, policy_engine)
+                    await run_chat(handler, edit_input, policy_engine, mcp_manager)
                 handler.edit_text = None
             continue
 
-        await run_chat(handler, user_input, policy_engine)
+        await run_chat(handler, user_input, policy_engine, mcp_manager)
 
 
 def main():
@@ -250,6 +264,7 @@ def main():
     parser.add_argument(
         "--no-auto-memory", action="store_true", help="Disable auto memory extraction"
     )
+    parser.add_argument("--no-mcp", action="store_true", help="Skip MCP server loading")
     parser.add_argument(
         "--policy", default=None, help="Path to policy YAML file (default: config/policy.yaml)"
     )
@@ -299,7 +314,24 @@ def main():
         except Exception as e:
             print_error(f"Failed to load policy {policy_path}: {e}")
 
-    asyncio.run(repl(handler, policy_engine))
+    async def _run():
+        mcp_manager = None
+        if not args.no_mcp:
+            configs = load_mcp_configs_merged(
+                bundled_path=BUNDLED_MCP_PATH, user_path=USER_MCP_PATH
+            )
+            if configs:
+                mcp_manager = MCPManager()
+                await mcp_manager.connect_all(configs)
+                if mcp_manager.clients:
+                    print_info(f"MCP: {len(mcp_manager.clients)} server(s) connected")
+        try:
+            await repl(handler, policy_engine, mcp_manager)
+        finally:
+            if mcp_manager:
+                await mcp_manager.shutdown()
+
+    asyncio.run(_run())
 
 
 if __name__ == "__main__":
