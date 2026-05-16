@@ -26,7 +26,7 @@ class PolicyRule:
     conditions: dict = field(default_factory=dict)
 
     def matches(self, tool_name: str, arguments: dict, work_dir: Path | None = None) -> bool:
-        if self.tool != "*" and self.tool != tool_name:
+        if self.tool != "*" and not fnmatch.fnmatch(tool_name, self.tool):
             return False
         if not self.conditions:
             return True

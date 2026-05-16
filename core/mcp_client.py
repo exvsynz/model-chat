@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import AsyncExitStack
 from dataclasses import dataclass, field
 
 from mcp import ClientSession, types
 from mcp.client.stdio import StdioServerParameters, stdio_client
+
+from core.safety import sanitize_env
 
 logger = logging.getLogger("model-chat.mcp")
 
@@ -41,10 +44,13 @@ class MCPClient:
 
         self._exit_stack = AsyncExitStack()
         try:
+            base_env = sanitize_env(dict(os.environ))
+            if self.config.env:
+                base_env.update(self.config.env)
             params = StdioServerParameters(
                 command=self.config.command,
                 args=self.config.args,
-                env=self.config.env,
+                env=base_env,
             )
             read, write = await self._exit_stack.enter_async_context(stdio_client(params))
             session = await self._exit_stack.enter_async_context(ClientSession(read, write))

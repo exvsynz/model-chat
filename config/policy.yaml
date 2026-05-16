@@ -96,3 +96,9 @@ rules:
         - "config/**"
         - "docs/**"
         - "scripts/**"
+
+  # --- MCP tools: prompt by default (external code execution) ---
+  - id: mcp-default-prompt
+    tool: "mcp_*"
+    action: prompt
+    priority: 1
