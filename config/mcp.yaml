@@ -1,0 +1,21 @@
+# MCP server configuration
+# Servers listed here are connected at startup and their tools exposed to the agent.
+# User overrides: ~/.model-chat/mcp.yaml (merged on top of this file)
+#
+# Environment variable substitution: use ${VAR_NAME} in env values.
+# Disabled servers are skipped. Remove "enabled: false" or set to true to activate.
+
+servers:
+  # Example: Anthropic filesystem server
+  # filesystem:
+  #   command: npx
+  #   args: ["-y", "@anthropic/mcp-server-filesystem", "C:/Users/exvsy/projects"]
+  #   enabled: true
+
+  # Example: GitHub server (requires token)
+  # github:
+  #   command: npx
+  #   args: ["-y", "@anthropic/mcp-server-github"]
+  #   env:
+  #     GITHUB_TOKEN: "${GITHUB_TOKEN}"
+  #   enabled: false
